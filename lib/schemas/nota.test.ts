@@ -11,32 +11,32 @@ import { describe, expect, it } from "vitest";
 import { crearNotaSchema } from "./nota";
 
 describe("crearNotaSchema", () => {
-  it("acepta una nota válida", async () => {
-    await expect(
-      crearNotaSchema.validate({
-        titulo: "Un título",
-        contenido: "Contenido de la nota",
-      }),
-    ).resolves.toBeDefined();
+  it("acepta una nota válida", () => {
+    const resultado = crearNotaSchema.safeParse({
+      titulo: "Un título",
+      contenido: "Contenido de la nota",
+    });
+
+    expect(resultado.success).toBe(true);
   });
 
-  it("rechaza un título demasiado corto", async () => {
-    await expect(
-      crearNotaSchema.validate({
-        titulo: "ab",
-        contenido: "Contenido de la nota",
-      }),
-    ).rejects.toThrow();
+  it("rechaza un título demasiado corto", () => {
+    const resultado = crearNotaSchema.safeParse({
+      titulo: "ab",
+      contenido: "Contenido de la nota",
+    });
+
+    expect(resultado.success).toBe(false);
   });
 
-  it("rechaza un contenido que es solo espacios", async () => {
+  it("rechaza un contenido que es solo espacios", () => {
     // Este es el caso borde interesante: sin el .trim() del schema,
     // "    " pasaría la validación de longitud mínima.
-    await expect(
-      crearNotaSchema.validate({
-        titulo: "Un título",
-        contenido: "     ",
-      }),
-    ).rejects.toThrow();
+    const resultado = crearNotaSchema.safeParse({
+      titulo: "Un título",
+      contenido: "     ",
+    });
+
+    expect(resultado.success).toBe(false);
   });
 });
