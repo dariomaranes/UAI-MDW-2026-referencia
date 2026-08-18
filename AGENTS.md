@@ -12,7 +12,7 @@ Este archivo lo lee tu asistente de IA (Cursor, Copilot, Claude Code, etc.) ante
 
 - Next.js (App Router) + TypeScript
 - Postgres + Prisma (o MongoDB Atlas + Prisma, si el equipo lo eligió y lo documentó en un ADR)
-- Zod para validación
+- Yup para validación
 - Auth.js para sesión y roles
 - Tailwind + shadcn/ui
 - Deploy en Vercel
@@ -48,7 +48,7 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 - Toda consulta que devuelva listas tiene paginación o límite explícito.
 
 ### Validación
-- **Toda entrada externa se valida con un schema de Zod** definido en `lib/schemas/`. Entrada externa = body de un request, params, query string, formulario, respuesta de una API de terceros.
+- **Toda entrada externa se valida con un schema de Yup** definido en `lib/schemas/`. Entrada externa = body de un request, params, query string, formulario, respuesta de una API de terceros.
 - El mismo schema se usa en el cliente y en el servidor. No duplicar reglas de validación.
 - Prohibido `any`. Si no se conoce el tipo, usar `unknown` y validar.
 

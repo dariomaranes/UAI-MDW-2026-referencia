@@ -37,7 +37,7 @@ Mascota N──N Veterinario
 
 ## Stack
 
-Next.js (App Router) + TypeScript + Postgres (Supabase) + Prisma + Zod + Tailwind.
+Next.js (App Router) + TypeScript + Postgres (Supabase) + Prisma + Yup + Tailwind.
 Deploy en Vercel.
 
 ## Cómo se sigue
@@ -88,7 +88,7 @@ app/                    rutas (App Router)
 components/             componentes de UI
 lib/
   db/                   acceso a datos — ÚNICO lugar que habla con Prisma
-  schemas/              schemas de Zod (validación + tipos)
+  schemas/              schemas de Yup (validación + tipos)
   auth.ts               configuración de sesión y roles
 prisma/
   schema.prisma         modelo de datos
