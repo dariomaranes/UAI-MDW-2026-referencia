@@ -6,7 +6,19 @@ Este archivo lo lee tu asistente de IA (Cursor, Copilot, Claude Code, etc.) ante
 
 ## Qué es este proyecto
 
-<Completar en la clase 1: qué hace el sistema, quiénes son los dos roles y cuál es el flujo principal.>
+Libreta sanitaria digital de mascotas. Reemplaza el cuadernito de papel: registra qué vacunas recibió cada mascota, calcula qué le falta según su especie y su edad, y permite emitir un certificado sanitario que un tercero puede verificar online.
+
+Dos roles: **dueño** (registra sus mascotas y solicita certificados) y **veterinario** (registra aplicaciones y emite o anula certificados).
+
+Flujo principal: el dueño solicita un certificado → el sistema evalúa el plan de vacunación → si le falta alguna vacuna obligatoria lo rechaza y enumera cuáles → si está al día, el veterinario lo emite → un tercero lo verifica en una página pública, sin sesión.
+
+## La especificación
+
+Lo que el sistema tiene que hacer está en [`docs/spec.md`](./docs/spec.md): entidades, historias de usuario con sus criterios de aceptación, el flujo principal y las reglas de negocio.
+
+- **Antes de escribir lógica de dominio, leelo.** Las reglas de la sección 6 no se deducen del código.
+- **Si algo no está ahí, no lo inventes: preguntá.** Una regla de negocio adivinada es un error que compila y que nadie detecta hasta producción.
+- Las reglas no se copian a este archivo: viven en un solo lugar y se leen desde ahí.
 
 ## Stack
 
@@ -50,6 +62,9 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 ### Validación
 - **Toda entrada externa se valida con un schema de Zod** definido en `lib/schemas/`. Entrada externa = body de un request, params, query string, formulario, respuesta de una API de terceros.
 - El mismo schema se usa en el cliente y en el servidor. No duplicar reglas de validación.
+- El tipo se **deriva** del schema con `z.infer`. No se escribe un `type` aparte que después se desincroniza.
+- Todo campo con un conjunto conocido de valores —estados, roles, categorías— va como **unión literal** (`z.enum`), nunca `string`.
+- Las fechas relativas a "ahora" se validan con `.refine()`, no con `.max(new Date())`: ese `new Date()` se evalúa al construir el schema y queda congelado al arrancar el servidor.
 - Prohibido `any`. Si no se conoce el tipo, usar `unknown` y validar.
 
 ### Seguridad
