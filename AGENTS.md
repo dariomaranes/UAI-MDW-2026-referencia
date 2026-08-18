@@ -69,6 +69,12 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 ### Git
 - Ramas: `feat/<descripcion-corta>`, `fix/<descripcion-corta>`.
 - Commits en imperativo y en español: "agrega validación de turnos superpuestos".
+- **Este repo es material didáctico: el historial se lee.** Todo commit que agregue el tema de una
+  clase va prefijado con `Clase NN:` — por ejemplo `Clase 03: reemplaza el modelo de ejemplo por
+  el de la libreta`. Así `git log` muestra el mapa del cuatrimestre y los alumnos pueden seguir
+  cómo creció el sistema clase a clase.
+- Los arreglos que no corresponden al tema de una clase van sin prefijo.
+- Un commit por tema. Si un cambio pertenece a dos clases distintas, son dos commits.
 - Nunca commitear `.env.local` ni credenciales.
 
 ## Cómo quiero que trabajes
