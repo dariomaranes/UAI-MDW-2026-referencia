@@ -1,19 +1,49 @@
-# Proyecto MDW 2026 — <NOMBRE DEL SISTEMA>
+# Libreta Sanitaria — proyecto de referencia de MDW 2026
 
-> Reemplazá este bloque en la clase 1.
+> Este es el **proyecto de referencia de la materia**: el que se construye en vivo, clase a clase,
+> durante los 15 minutos de demo. No es de ningún equipo — está publicado para que cualquiera
+> pueda mirar cómo se resuelve el tema del día sobre un dominio distinto al suyo.
+>
+> Material de la materia: https://dariomaranes.github.io/UAI-MDW-2026/
 
-**Equipo:**
+**Equipo:** Darío Marañes (docente)
 
-- Nombre Apellido — responsable del repositorio (creó el repo y tiene la cuenta de Vercel)
-- Nombre Apellido
-- Nombre Apellido
-- Nombre Apellido
+**Producción:** *(se completa en la clase 1)*
 
-**Producción:** https://<tu-proyecto>.vercel.app
-**Problema que resuelve:** una oración.
-**Flujo principal:** una oración.
+## De qué se trata
 
----
+Las libretas sanitarias de las mascotas son de papel: se pierden, se mojan, y cuando hay que
+demostrar que un perro está al día con la antirrábica no aparecen. Este sistema lleva el registro
+de vacunas, desparasitaciones y controles de cada mascota, con su historial.
+
+**Roles**
+
+- **Dueño**: registra sus mascotas y consulta el historial de cada una.
+- **Veterinario**: registra las aplicaciones y los controles que realiza.
+
+**Flujo principal:** el veterinario registra la aplicación de una vacuna a una mascota, y queda
+en el historial con su fecha de vencimiento.
+
+## Por qué este dominio
+
+Se eligió a propósito en lugar de un turnero: *turnos* sirve para cualquier rubro y es lo que más
+equipos van a elegir, así que había riesgo alto de coincidir con alguno. Una libreta sanitaria es
+específica y tiene relaciones más ricas para modelar:
+
+```
+Dueño 1──N Mascota 1──N Aplicación N──1 Vacuna
+Mascota N──N Veterinario
+```
+
+## Stack
+
+Next.js (App Router) + TypeScript + Postgres (Supabase) + Prisma + Zod + Tailwind.
+Deploy en Vercel.
+
+## Cómo se sigue
+
+Cada clase agrega el tema del día. Los commits están ordenados por clase, así que el historial
+sirve para ver cómo fue creciendo el sistema.
 
 ## Puesta en marcha
 
