@@ -161,6 +161,32 @@ revisar a mano.
   el sistema entero perdería valor.
 - El **código de verificación** es público pero no adivinable, y no expone datos del dueño.
 
+### Qué pasa al borrar
+
+Nada de este dominio se borra en cascada. La libreta existe para **conservar historial**, así que
+donde hay un dato que ya ocurrió la base impide el borrado en vez de propagarlo.
+
+- No se puede **borrar un usuario que tiene mascotas cargadas**: dar de baja una cuenta no puede
+  llevarse puesto el historial sanitario de sus animales.
+- No se puede **borrar un usuario que aplicó vacunas o emitió certificados**. Una aplicación dice
+  quién la hizo, y eso no se borra ni se anonimiza porque el profesional deje el sistema.
+- No se puede **borrar una mascota que tiene aplicaciones o certificados**.
+- No se puede **borrar una vacuna del catálogo que ya se aplicó** alguna vez: las aplicaciones
+  viejas siguen apuntando a ella.
+
+Dar de baja a alguien, si hiciera falta, se resuelve **desactivando y no borrando**. Hoy no está
+implementado y no hace falta: nada del flujo principal necesita borrar.
+
+### Qué se calcula y qué se guarda
+
+- El **estado sanitario** de una mascota —cada vacuna del plan como al día, pendiente o vencida—
+  **se calcula** al consultarlo, a partir de las aplicaciones y del plan de la vacuna. No hay
+  ninguna columna `estado`: si se guardara, quedaría desactualizada sola el día que una vacuna
+  vence, sin que nadie toque el sistema.
+- El **vencimiento de un certificado**, en cambio, **se guarda**. Es la foto del momento en que se
+  emitió: forma parte de lo que el certificado afirma y no puede cambiar retroactivamente porque
+  después se aplique otra vacuna.
+
 ## 7. Requisitos no funcionales
 
 ### Usabilidad

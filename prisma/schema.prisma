@@ -1,10 +1,13 @@
-// Modelo de datos del proyecto.
+// Modelo de datos de la libreta sanitaria.
 //
-// Lo que hay acá abajo es un EJEMPLO MÍNIMO para que el proyecto arranque.
-// En la clase 3 lo reemplazan por el modelo de su propio dominio.
+// Cada tabla de acá sale de la sección 3 de `docs/spec.md`. Si aparece un
+// campo que ninguna historia de usuario necesita, sobra; si una historia
+// necesita un dato que no está, falta.
 //
 // Después de cualquier cambio en este archivo:
 //   npx prisma migrate dev --name <descripcion-del-cambio>
+//
+// Y nunca se edita el SQL de una migración ya aplicada: se corrige con otra.
 
 generator client {
   provider = "prisma-client-js"
@@ -28,34 +31,229 @@ datasource db {
 // Ojo: con Mongo los ids llevan @map("_id") @db.ObjectId y la integridad
 // referencial la garantiza el código, no la base.
 
+// ---------------------------------------------------------------------------
+// Enums: las listas cerradas de valores.
+//
+// Van como enum y no como String por la misma razón por la que en Zod van
+// como unión literal: la base rechaza cualquier valor que no esté en la
+// lista. Con String, un día entra "perro" en minúscula y todas las consultas
+// que filtran por "PERRO" dejan de encontrarlo, sin ningún error visible.
+//
+// Los mismos valores están en `lib/schemas/comunes.ts` para Zod. Que no se
+// desincronicen lo garantiza el chequeo de tipos que hay en ese archivo.
+// ---------------------------------------------------------------------------
+
 enum Rol {
+  DUENO
+  VETERINARIO
+  // El admin no es un rol del negocio: existe solo porque un veterinario no
+  // puede auto-registrarse como tal (regla de negocio de la spec). Si
+  // cualquiera pudiera declararse veterinario, podría emitir certificados
+  // falsos y el sistema entero perdería su valor.
   ADMIN
-  USUARIO
 }
+
+enum Especie {
+  PERRO
+  GATO
+}
+
+enum MotivoCertificado {
+  VIAJE
+  GUARDERIA
+  CONCURSO
+  OTRO
+}
+
+// Ojo con lo que NO está acá: VENCIDO.
+//
+// Un certificado se vence solo, el día que pasa su fecha de vencimiento, sin
+// que nadie toque el sistema. Guardarlo como estado obligaría a un proceso
+// que recorra la tabla corrigiéndolo, y hasta que ese proceso corra la
+// columna estaría mintiendo. Se calcula al leer, comparando `vencimiento`
+// con la fecha de hoy.
+//
+// Los tres que sí están son actos que alguien realizó.
+enum EstadoCertificado {
+  SOLICITADO
+  EMITIDO
+  ANULADO
+}
+
+// ---------------------------------------------------------------------------
+// Entidades
+// ---------------------------------------------------------------------------
 
 model Usuario {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  nombre    String
-  rol       Rol      @default(USUARIO)
-  creadoEn  DateTime @default(now())
+  id       String   @id @default(cuid())
+  email    String   @unique
+  nombre   String
+  rol      Rol
+  creadoEn DateTime @default(now())
 
-  notas     Nota[]
+  // Los tres lados "1" de sus relaciones. Ninguno crea una columna en esta
+  // tabla: son la vuelta de la FK que vive en la otra.
+  mascotas             Mascota[]
+  aplicaciones         Aplicacion[]
+  certificadosEmitidos Certificado[]
+
+  // La única N-N real del sistema: un veterinario atiende en varias
+  // veterinarias y una veterinaria tiene varios veterinarios. Prisma crea
+  // sola la tabla intermedia porque no tiene datos propios. El día que haga
+  // falta guardar "desde cuándo atiende ahí", deja de ser una relación y pasa
+  // a ser una entidad con su propio model.
+  veterinarias Veterinaria[]
 }
 
-// Entidad de ejemplo: bórrenla en la clase 3.
-// Muestra el patrón de una relación 1-N con su índice.
-model Nota {
-  id            String   @id @default(cuid())
-  titulo        String
-  contenido     String
+model Mascota {
+  id              String   @id @default(cuid())
+  nombre          String
+  especie         Especie
+  fechaNacimiento DateTime
+
+  // Opcional porque hay mascotas sin chipear, y único porque el microchip ISO
+  // no se repite. En Postgres una columna única admite muchos NULL, así que
+  // las dos cosas conviven sin problema.
+  chip String? @unique
+
+  // onDelete: Restrict — borrar un dueño con mascotas cargadas está prohibido
+  // a nivel base. Con Cascade, dar de baja una cuenta se llevaría puesto el
+  // historial sanitario de sus animales, que es justamente lo que el sistema
+  // existe para conservar.
+  dueno   Usuario @relation(fields: [duenoId], references: [id], onDelete: Restrict)
+  duenoId String
+
+  aplicaciones Aplicacion[]
+  certificados Certificado[]
+
   creadaEn      DateTime @default(now())
   actualizadaEn DateTime @updatedAt
 
-  autor         Usuario  @relation(fields: [autorId], references: [id], onDelete: Cascade)
-  autorId       String
+  // Índice sobre la FK: la H1 pide que cada dueño vea solo sus mascotas, o
+  // sea que la consulta filtra por duenoId en cada pantalla. Sin índice,
+  // Postgres recorre la tabla entera cada vez.
+  @@index([duenoId])
+}
 
-  // Índice sobre la foreign key: sin esto, listar las notas de un usuario
-  // obliga a Postgres a recorrer la tabla entera.
-  @@index([autorId])
+// El catálogo: qué vacunas existen. No es "las vacunas de una mascota" —eso
+// es Aplicacion—, es la definición de cada vacuna y su plan.
+model Vacuna {
+  id      String  @id @default(cuid())
+  nombre  String
+  especie Especie
+
+  // Las dos reglas que hacen falta para calcular el estado sanitario.
+  // Los nombres y las unidades son EXACTAMENTE los de `crearVacunaSchema`:
+  // si la columna se llamara distinto que el campo validado, habría que
+  // traducir en cada consulta y algún día la traducción se olvida.
+  edadMinimaMeses       Int
+  // Null significa "dosis única, sin refuerzo". Es información, no un dato
+  // faltante: por eso es opcional y no un 0 que habría que interpretar.
+  intervaloRefuerzoDias Int?
+
+  // Solo las obligatorias bloquean la emisión de un certificado.
+  obligatoria Boolean @default(false)
+
+  aplicaciones Aplicacion[]
+
+  // La misma vacuna puede existir para perro y para gato con edades mínimas
+  // distintas; lo que no puede haber es dos veces la misma para la misma
+  // especie.
+  @@unique([nombre, especie])
+}
+
+// Un hecho que ocurrió: ESTA vacuna, a ESTA mascota, ESTE día, aplicada por
+// ESTE veterinario.
+//
+// Es la tabla que parece una relación N-N entre Mascota y Vacuna y no lo es:
+// en cuanto la relación necesita una fecha y un responsable, es una entidad.
+model Aplicacion {
+  id    String   @id @default(cuid())
+  fecha DateTime
+
+  // Se calcula al registrar la aplicación, sumando `mesesRefuerzo`. Es null
+  // cuando la vacuna es de dosis única.
+  //
+  // Esto SÍ se guarda —a diferencia del estado "al día / vencida", que se
+  // calcula al leer— porque es el resultado de una decisión tomada en un
+  // momento dado, con el plan que regía ese día. Si mañana cambia el
+  // refuerzo de la vacuna, las aplicaciones viejas conservan la fecha que se
+  // le informó al dueño.
+  proximaDosis DateTime?
+
+  mascota   Mascota @relation(fields: [mascotaId], references: [id], onDelete: Restrict)
+  mascotaId String
+
+  vacuna   Vacuna @relation(fields: [vacunaId], references: [id], onDelete: Restrict)
+  vacunaId String
+
+  // Quién la aplicó. Es un registro sanitario: no se borra ni se anonimiza
+  // porque el profesional se dé de baja del sistema.
+  veterinario   Usuario @relation(fields: [veterinarioId], references: [id], onDelete: Restrict)
+  veterinarioId String
+
+  observaciones String?
+
+  creadaEn DateTime @default(now())
+
+  @@index([mascotaId])
+  @@index([vacunaId])
+  @@index([veterinarioId])
+}
+
+model Certificado {
+  id String @id @default(cuid())
+
+  // A diferencia del estado sanitario de una vacuna, este estado SÍ se
+  // guarda: solicitar, emitir y anular son actos que alguien realizó, no
+  // conclusiones que se sacan de otros datos. Ninguno ocurre solo por el
+  // paso del tiempo.
+  estado EstadoCertificado @default(SOLICITADO)
+
+  // Se asigna recién al emitir, por eso es opcional. Público pero no
+  // adivinable: lo genera el servidor, nunca es un número correlativo.
+  codigoVerificacion String? @unique
+
+  // Para qué se pidió. Cambia qué vacunas exige el destino, así que es un
+  // dato del certificado, no del formulario.
+  motivo  MotivoCertificado
+  detalle String?
+
+  solicitadoEn DateTime  @default(now())
+  emitidoEn    DateTime?
+  anuladoEn    DateTime?
+
+  // La foto del momento de la emisión, no un cálculo: vence cuando vence la
+  // primera vacuna obligatoria que lo respalda, o a los 30 días, lo que
+  // ocurra primero. Se congela al emitir porque es parte de lo que el
+  // certificado afirma.
+  vencimiento DateTime?
+
+  // El PDF vive en un storage externo (clase 7); acá solo queda su ubicación.
+  // Si el storage falla, el certificado igual está emitido y es verificable:
+  // lo que vale es el registro, no el archivo.
+  urlPdf String?
+
+  mascota   Mascota @relation(fields: [mascotaId], references: [id], onDelete: Restrict)
+  mascotaId String
+
+  // Null mientras está solicitado. Solo el veterinario que lo emitió puede
+  // anularlo, así que este dato es parte de una regla de negocio.
+  emisor   Usuario? @relation(fields: [emisorId], references: [id], onDelete: Restrict)
+  emisorId String?
+
+  @@index([mascotaId])
+  @@index([emisorId])
+}
+
+model Veterinaria {
+  id        String  @id @default(cuid())
+  nombre    String
+  direccion String
+  // Opcional: hay clínicas que solo atienden por WhatsApp y no publican fijo.
+  telefono  String?
+
+  veterinarios Usuario[]
+
+  creadaEn DateTime @default(now())
 }
