@@ -6,6 +6,7 @@
  * distintas.
  */
 import { z } from "zod";
+import type { Especie as EspeciePrisma } from "@prisma/client";
 
 /**
  * Las especies que maneja el sistema. Unión literal, nunca `string`:
@@ -13,6 +14,22 @@ import { z } from "zod";
  */
 export const especieSchema = z.enum(["PERRO", "GATO"]);
 export type Especie = z.infer<typeof especieSchema>;
+
+/**
+ * La lista de especies vive en dos lugares —acá y en el enum de
+ * `schema.prisma`— porque son dos capas distintas: Prisma define qué acepta
+ * la base, Zod define qué acepta la frontera de la aplicación.
+ *
+ * Que sean dos no es problema. Que se desincronicen sin que nadie se entere,
+ * sí. Esta línea lo impide: si alguien agrega una especie en un lado y no en
+ * el otro, `npm run typecheck` falla y el PR no pasa.
+ *
+ * `import type` se borra al compilar, así que esto no arrastra el cliente de
+ * Prisma a ningún bundle.
+ */
+type Igual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+const _especiesSincronizadas: Igual<Especie, EspeciePrisma> = true;
+void _especiesSincronizadas;
 
 /**
  * Los ids son cuid() generados por Prisma. No validamos el formato exacto

@@ -9,17 +9,44 @@ import { z } from "zod";
 import { idSchema } from "./comunes";
 
 /**
- * Los cuatro estados posibles, y no hay un quinto. Con `string` alguien
+ * Los tres estados que se GUARDAN, y no hay un cuarto. Con `string` alguien
  * escribiría "emitido", "Emitido" y "EMITIDO" y serían tres estados distintos.
+ *
+ * En la clase 2 este enum tenía además VENCIDO, y estaba mal: un certificado
+ * se vence solo, el día que pasa su fecha, sin que nadie toque el sistema.
+ * Guardarlo como estado obligaría a un proceso que recorra la tabla
+ * corrigiéndolo, y hasta que ese proceso corra la columna estaría mintiendo.
+ *
+ * La regla que lo decide: si el dato puede cambiar sin que nadie toque el
+ * sistema, se calcula; si es un acto que alguien realizó, se guarda.
+ * Solicitar, emitir y anular son actos. Vencer, no.
  */
 export const estadoCertificadoSchema = z.enum([
   "SOLICITADO",
   "EMITIDO",
-  "VENCIDO",
   "ANULADO",
 ]);
 
 export type EstadoCertificado = z.infer<typeof estadoCertificadoSchema>;
+
+/**
+ * Lo que ve un tercero en la página pública (H6). Es lo que el estado
+ * guardado y la fecha de vencimiento dicen JUNTOS, y se calcula al leer.
+ */
+export type VigenciaCertificado = "VIGENTE" | "VENCIDO" | "ANULADO" | "PENDIENTE";
+
+export function calcularVigencia(certificado: {
+  estado: EstadoCertificado;
+  vencimiento: Date | null;
+}): VigenciaCertificado {
+  if (certificado.estado === "ANULADO") return "ANULADO";
+  if (certificado.estado === "SOLICITADO") return "PENDIENTE";
+  // Emitido: vigente o vencido según el reloj, no según la base.
+  if (certificado.vencimiento !== null && certificado.vencimiento <= new Date()) {
+    return "VENCIDO";
+  }
+  return "VIGENTE";
+}
 
 /** Para qué se pide el certificado. Cambia qué vacunas exige el destino. */
 export const motivoCertificadoSchema = z.enum([
