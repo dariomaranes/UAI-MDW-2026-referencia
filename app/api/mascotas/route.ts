@@ -9,19 +9,21 @@
  * Se completa en las clases 4, 5 y 6.
  */
 import { NextResponse } from "next/server";
-import { crearNotaSchema } from "@/lib/schemas/nota";
-import { crearNota, listarNotas } from "@/lib/db/notas";
+import { crearMascotaSchema } from "@/lib/schemas/mascota";
+import { crearMascota, listarMascotas } from "@/lib/db/mascotas";
 
 export async function GET() {
-  const notas = await listarNotas();
-  return NextResponse.json(notas);
+  // TODO (clase 6): listar solo las mascotas del dueño de la sesión con
+  // `listarMascotasDeDueno`. Hasta que haya sesión no hay a quién filtrar.
+  const mascotas = await listarMascotas();
+  return NextResponse.json(mascotas);
 }
 
 export async function POST(request: Request) {
   // 1. Validar. Nunca confiar en el body: puede venir de cualquier lado,
   //    no solo del formulario propio.
   const body: unknown = await request.json();
-  const resultado = crearNotaSchema.safeParse(body);
+  const resultado = crearMascotaSchema.safeParse(body);
 
   if (!resultado.success) {
     return NextResponse.json(
@@ -30,14 +32,14 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2. Autorizar. El autor sale de la sesión del servidor, NUNCA del body.
+  // 2. Autorizar. El dueño sale de la sesión del servidor, NUNCA del body.
   //    TODO (clase 6): reemplazar por el usuario real de la sesión y
   //    devolver 401 si no hay sesión.
-  const autorId = "usuario-de-ejemplo";
+  const duenoId = "usuario-de-ejemplo";
 
   // 3. Delegar el acceso a datos.
-  const nota = await crearNota(resultado.data, autorId);
+  const mascota = await crearMascota(resultado.data, duenoId);
 
   // 4. 201 = se creó un recurso nuevo.
-  return NextResponse.json(nota, { status: 201 });
+  return NextResponse.json(mascota, { status: 201 });
 }

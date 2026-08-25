@@ -2,12 +2,12 @@
  * Home del proyecto.
  *
  * Esto es un Server Component: corre en el servidor, puede leer de la base
- * directamente y nunca llega al navegador. Por eso puede llamar a `listarNotas`
- * sin pasar por un endpoint HTTP.
+ * directamente y nunca llega al navegador. Por eso puede llamar a
+ * `listarMascotas` sin pasar por un endpoint HTTP.
  *
- * En la clase 1 se reemplaza por la portada del proyecto del equipo.
+ * En la clase 9 se reemplaza por la portada real, con su diseño.
  */
-import { listarNotas } from "@/lib/db/notas";
+import { listarMascotas } from "@/lib/db/mascotas";
 
 // Esta página lee datos que cambian, así que se renderiza en cada request.
 // Sin esta línea, Next.js intentaría generarla una sola vez durante el build
@@ -15,27 +15,29 @@ import { listarNotas } from "@/lib/db/notas";
 // En la clase 12 vemos cuándo conviene lo contrario: cachear y revalidar.
 export const dynamic = "force-dynamic";
 
+const formatoFecha = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
+
 export default async function Home() {
   // La primera vez que se levanta el proyecto todavía no hay base configurada.
   // En vez de reventar con un error de Prisma en la cara, se muestra qué falta.
   // Es el mismo criterio que van a aplicar en todo el sistema: un error
   // esperable no se propaga al usuario, se comunica.
-  let notas: Awaited<ReturnType<typeof listarNotas>> | null = null;
+  let mascotas: Awaited<ReturnType<typeof listarMascotas>> | null = null;
 
   try {
-    notas = await listarNotas();
+    mascotas = await listarMascotas();
   } catch {
-    notas = null;
+    mascotas = null;
   }
 
   return (
     <main className="mx-auto max-w-2xl p-8">
-      <h1 className="text-2xl font-bold">Proyecto MDW 2026</h1>
+      <h1 className="text-2xl font-bold">Libreta sanitaria</h1>
       <p className="mt-2 text-sm opacity-70">
-        Equipo: completar en el README y acá.
+        Proyecto de referencia de MDW 2026.
       </p>
 
-      {notas === null ? (
+      {mascotas === null ? (
         <section className="mt-8 rounded-lg border border-dashed p-6">
           <h2 className="text-lg font-semibold">Falta conectar la base de datos</h2>
           <p className="mt-2 text-sm opacity-80">
@@ -49,24 +51,27 @@ export default async function Home() {
               <code>.env.local</code>.
             </li>
             <li>
-              Correr <code>npx prisma migrate dev --name init</code> y{" "}
+              Correr <code>npx prisma migrate dev</code> y{" "}
               <code>npm run db:seed</code>.
             </li>
           </ol>
         </section>
-      ) : notas.length === 0 ? (
+      ) : mascotas.length === 0 ? (
         <p className="mt-8 text-sm opacity-70">
           La base está conectada pero no hay datos. Corran <code>npm run db:seed</code>.
         </p>
       ) : (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold">Notas de ejemplo</h2>
+          <h2 className="text-lg font-semibold">Mascotas registradas</h2>
           <ul className="mt-4 space-y-3">
-            {notas.map((nota) => (
-              <li key={nota.id} className="rounded-lg border p-4">
-                <h3 className="font-medium">{nota.titulo}</h3>
-                <p className="mt-1 text-sm opacity-80">{nota.contenido}</p>
-                <p className="mt-2 text-xs opacity-60">por {nota.autor.nombre}</p>
+            {mascotas.map((mascota) => (
+              <li key={mascota.id} className="rounded-lg border p-4">
+                <h3 className="font-medium">{mascota.nombre}</h3>
+                <p className="mt-1 text-sm opacity-80">
+                  {mascota.especie === "PERRO" ? "Perro" : "Gato"} · nacida el{" "}
+                  {formatoFecha.format(mascota.fechaNacimiento)}
+                </p>
+                <p className="mt-2 text-xs opacity-60">de {mascota.dueno.nombre}</p>
               </li>
             ))}
           </ul>
