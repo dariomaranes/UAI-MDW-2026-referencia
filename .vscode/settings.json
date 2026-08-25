@@ -1,0 +1,9 @@
+{
+  // El proyecto usa Prisma 6 (ver package.json), donde `url` y `directUrl` van
+  // dentro de `datasource` en schema.prisma. La extensión de Prisma para VS Code
+  // trae por defecto el language server de Prisma 7, que ya no los acepta ahí y
+  // marca un error donde no lo hay. Con esto el editor valida con la misma
+  // versión que usa el CLI.
+  "prisma.pinToPrisma6": true,
+  "prisma.hidePrisma6Prompts": true
+}
