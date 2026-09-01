@@ -8,7 +8,7 @@
 
 **Equipo:** Darío Marañes (docente)
 
-**Producción:** *(se completa en la clase 1)*
+**Producción:** https://uai-mdw-2026-referencia.vercel.app
 
 ## De qué se trata
 

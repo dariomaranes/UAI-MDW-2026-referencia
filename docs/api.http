@@ -1,0 +1,263 @@
+# Pruebas de la API — Libreta Sanitaria
+#
+# Cómo se usa:
+#   1. Instalar la extensión "REST Client" (humao.rest-client) en VS Code.
+#   2. Levantar el proyecto con `npm run dev`.
+#   3. Apretar el "Send Request" que aparece arriba de cada request.
+#      (o Cmd+Alt+R con el cursor adentro del bloque)
+#
+# La respuesta se abre en un panel al lado, con el status arriba de todo.
+#
+# Cada bloque que empieza con ### es una request independiente. El texto que
+# va al lado del ### es su nombre, y sale en el índice del archivo (Cmd+Shift+O).
+#
+# ---------------------------------------------------------------------------
+# Variables
+# ---------------------------------------------------------------------------
+# Todas las requests usan {{base}}. Para probar contra producción se comenta
+# una línea y se descomenta la otra: no hay que tocar ninguna URL.
+#
+# OJO: el valor de una variable es TODO lo que sigue al `=`, hasta el fin de
+# la línea. No se le puede poner un comentario al lado: pasa a ser parte de
+# la URL y el request sale malformado.
+#
+# Si el 3000 ya está ocupado por otro proyecto, Next arranca en el 3001 y lo
+# avisa en la consola. Se cambia acá y listo.
+
+@base = http://localhost:3000
+# @base = http://localhost:3001
+# @base = https://uai-mdw-2026-referencia.vercel.app
+#
+# OJO con la de producción: es la URL QUE VERCEL LES DIO, copiada del panel.
+# No la inventen a partir del nombre del proyecto — los subdominios de
+# vercel.app son globales y por orden de llegada, así que el nombre "lindo"
+# que se les ocurra probablemente sea de otra persona, y le estarían mandando
+# sus requests de prueba al servidor de un desconocido. (Nos pasó: el obvio
+# para este proyecto ya estaba tomado, y por eso este se llama como el repo.)
+
+
+###############################################################################
+# 1. MASCOTAS — el CRUD de la entidad principal
+###############################################################################
+
+### listar las mascotas → 200
+# El endpoint más simple: sin body, sin headers. Devuelve lo que cargó el seed.
+#
+# El "@name" le pone nombre a la request para que las de abajo puedan leer su
+# respuesta. Así se recorre el flujo entero sin copiar un solo id a mano.
+# @name listarMascotas
+GET {{base}}/api/mascotas
+
+
+### la ficha de una mascota → 200
+# {{listarMascotas.response.body.$[0].id}} es JSONPath: "el id del primer
+# elemento del array que devolvió la request llamada listarMascotas".
+#
+# Hay que mandar la de arriba primero: la variable se resuelve con la última
+# respuesta que esa request haya recibido.
+GET {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}
+
+
+### una mascota que no existe → 404
+# Un id inventado no es un error del servidor. Si esto devuelve 500, hay un
+# bug; si devuelve 200 con null, hay un bug peor.
+GET {{base}}/api/mascotas/no-existe
+
+
+### crear una mascota con datos inválidos → 400
+# Esto es lo que hay que probar SIEMPRE, y lo que nadie prueba: el camino que
+# falla. Fíjense en la respuesta: Zod devuelve un error por campo, con el
+# mensaje que se escribió en lib/schemas/mascota.ts en la clase 2.
+#
+# La línea en blanco que hay entre el header y el body NO es decorativa:
+# sin ella el body no se manda.
+POST {{base}}/api/mascotas
+Content-Type: application/json
+
+{
+  "nombre": "",
+  "especie": "DRAGON"
+}
+
+
+### crear una mascota con una fecha futura → 400
+# El otro 400, y este es una REGLA DE NEGOCIO, no un problema de formato: la
+# H1 dice que una mascota no puede haber nacido en el futuro. Está en el
+# schema de Zod, así que se rechaza en el paso 1 del handler.
+POST {{base}}/api/mascotas
+Content-Type: application/json
+
+{
+  "nombre": "Viajero del Tiempo",
+  "especie": "PERRO",
+  "fechaNacimiento": "2099-01-01"
+}
+
+
+### crear una mascota con datos válidos → 201
+# El camino feliz. Devuelve el objeto creado CON SU ID, que es la razón por
+# la que un 201 no va vacío: si no, el cliente tiene que pedirlo de nuevo.
+# @name crearMascota
+POST {{base}}/api/mascotas
+Content-Type: application/json
+
+{
+  "nombre": "Fido",
+  "especie": "PERRO",
+  "fechaNacimiento": "2024-03-01"
+}
+
+
+### corregir un dato → 200
+# PATCH lleva SOLO los campos que cambian, no el objeto entero. El schema es
+# `crearMascotaSchema.partial()`: una definición, dos usos.
+PATCH {{base}}/api/mascotas/{{crearMascota.response.body.id}}
+Content-Type: application/json
+
+{
+  "nombre": "Fido Segundo"
+}
+
+
+### borrar la que acabamos de crear → 204
+# 204 = salió bien y no hay nada que devolver. El panel de respuesta va a
+# aparecer vacío, y está bien: un DELETE no devuelve body.
+DELETE {{base}}/api/mascotas/{{crearMascota.response.body.id}}
+
+
+### borrar una mascota CON historial → 409
+# Laika tiene aplicaciones cargadas por el seed. La spec dice que la libreta
+# conserva historial, así que esto no se borra.
+#
+# 409 y no 400: el cliente no mandó nada mal. Es el estado actual el que
+# choca con la operación.
+DELETE {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}
+
+
+###############################################################################
+# 2. CERTIFICADOS — la operación que NO es un ABM
+#
+# Esta es la parte importante del dominio. Fíjense en la diferencia entre
+# solicitar (un POST a la colección, un ABM común) y emitir (un POST a un
+# sub-recurso, que ejecuta una operación con sus propias reglas).
+###############################################################################
+
+### los certificados del dueño → 200
+GET {{base}}/api/certificados
+
+
+### solicitar un certificado → 201
+# Nace en estado SOLICITADO, sin código y sin vencimiento: esos dos se
+# asignan recién al emitir.
+# @name solicitar
+POST {{base}}/api/certificados
+Content-Type: application/json
+
+{
+  "mascotaId": "{{listarMascotas.response.body.$[0].id}}",
+  "motivo": "VIAJE",
+  "detalle": "Vuelo a Bariloche"
+}
+
+
+### solicitar para una mascota ajena → 404
+# La mascota existe, pero no es de quien pide. Se responde 404 y NO 403,
+# porque un 403 confirmaría que existe. Para este dueño, la mascota del
+# vecino no existe.
+POST {{base}}/api/certificados
+Content-Type: application/json
+
+{
+  "mascotaId": "mascota-de-otro-dueno",
+  "motivo": "VIAJE"
+}
+
+
+### EMITIRLO → 201
+# ────────────────────────────────────────────────────────────────────────
+# EL ENDPOINT MÁS IMPORTANTE DEL PROYECTO.
+#
+# Miren la URL: `emision` es un sustantivo, no un verbo. El recurso es "la
+# emisión de este certificado", y el POST la crea.
+#
+# Y miren que NO LLEVA BODY. Todo lo que necesita está en la URL y en la
+# sesión. Cuanto menos decide el cliente, menos hay de qué desconfiar.
+#
+# Lo que un PATCH { "estado": "EMITIDO" } no puede hacer: acá se verifica el
+# estado, se genera un código único, se congela el vencimiento y se registra
+# quién emitió. Todo junto o nada.
+# ────────────────────────────────────────────────────────────────────────
+# @name emitir
+POST {{base}}/api/certificados/{{solicitar.response.body.id}}/emision
+
+
+### emitirlo OTRA VEZ → 409
+# Mandá la de arriba y después esta. El certificado ya no está SOLICITADO,
+# así que la transición no corresponde.
+#
+# La verificación no está en un `if` del handler: está en el WHERE de la
+# consulta (`estado: "SOLICITADO"`). No hay forma de olvidársela.
+POST {{base}}/api/certificados/{{solicitar.response.body.id}}/emision
+
+
+### emitir uno que no existe → 404
+POST {{base}}/api/certificados/no-existe/emision
+
+
+###############################################################################
+# 3. VERIFICACIÓN PÚBLICA — el único endpoint sin sesión
+###############################################################################
+
+### verificar el certificado recién emitido → 200
+# El código sale de la respuesta de "emitir": lo generó el servidor con
+# crypto.randomInt, no es adivinable ni correlativo.
+#
+# Miren bien QUÉ DEVUELVE: la mascota, las fechas y la vigencia. NO devuelve
+# el dueño, ni su email, ni el detalle del motivo. Esta respuesta la lee una
+# aerolínea, así que el `select` de lib/db/ es acá una medida de seguridad.
+#
+# Y la vigencia se calcula contra el reloj de ahora: un certificado emitido
+# hace 40 días dice VENCIDO aunque en la base siga diciendo EMITIDO.
+GET {{base}}/api/verificacion/{{emitir.response.body.codigoVerificacion}}
+
+
+### un código que no existe → 404
+# "No encontrado" a secas. Sin pistas sobre si el código estuvo cerca: quien
+# prueba códigos al azar no tiene que aprender nada de la respuesta.
+GET {{base}}/api/verificacion/ABCDEFGHJKLM
+
+
+### un código con formato inválido → 404, no 400
+# La excepción a la regla del resto de la API. Un 400 diría "ese código no
+# tiene la forma correcta", que es exactamente la pista que le sirve a
+# alguien probando a mano.
+GET {{base}}/api/verificacion/hola
+
+
+###############################################################################
+# LO QUE TODAVÍA NO EXISTE
+#
+# Comentadas porque los endpoints llegan en las próximas clases. Sirven como
+# machete de la sintaxis y como recordatorio de lo que falta.
+###############################################################################
+
+### el historial de aplicaciones de una mascota (clase 5)
+# GET {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}/aplicaciones
+
+
+### registrar una aplicación (clase 5)
+# POST {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}/aplicaciones
+# Content-Type: application/json
+#
+# {
+#   "vacunaId": "...",
+#   "fecha": "2026-08-01"
+# }
+
+
+### el estado sanitario, que se CALCULA (clase 5)
+# GET {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}/estado-sanitario
+
+
+### anular un certificado — solo el veterinario que lo emitió (clase 6)
+# POST {{base}}/api/certificados/{{solicitar.response.body.id}}/anulacion

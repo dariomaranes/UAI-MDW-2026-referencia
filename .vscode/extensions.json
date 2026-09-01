@@ -1,0 +1,8 @@
+{
+  // Al abrir el proyecto, VS Code ofrece instalar estas extensiones.
+  //
+  // REST Client ejecuta los requests de `docs/api.http` con un click, sin
+  // salir del editor y sin cuenta de ningún servicio. Es opcional: la API se
+  // puede probar igual con curl o con Postman.
+  "recommendations": ["humao.rest-client"]
+}
