@@ -9,7 +9,10 @@
  * algo anda lento, se sabe exactamente dónde mirar.
  */
 import { prisma } from "@/lib/db/client";
-import type { CrearMascotaInput } from "@/lib/schemas/mascota";
+import type {
+  ActualizarMascotaInput,
+  CrearMascotaInput,
+} from "@/lib/schemas/mascota";
 
 const LIMITE_POR_DEFECTO = 50;
 
@@ -76,4 +79,80 @@ export async function crearMascota(datos: CrearMascotaInput, duenoId: string) {
   return prisma.mascota.create({
     data: { ...datos, duenoId },
   });
+}
+
+/**
+ * Una mascota concreta, verificando de paso que sea de quien la pide.
+ *
+ * El `duenoId` va en el WHERE, no en un `if` posterior: si la mascota es del
+ * vecino, esta consulta devuelve `null` igual que si no existiera. Eso es
+ * deliberado y es la decisión de `docs/api.md`: para este dueño, la mascota
+ * del vecino NO existe. Responder 403 confirmaría que existe.
+ */
+export async function obtenerMascotaDeDueno(id: string, duenoId: string) {
+  return prisma.mascota.findFirst({
+    where: { id, duenoId },
+    select: {
+      id: true,
+      nombre: true,
+      especie: true,
+      fechaNacimiento: true,
+      chip: true,
+      creadaEn: true,
+    },
+  });
+}
+
+/**
+ * Corrige datos de una mascota del dueño.
+ *
+ * `updateMany` en vez de `update` por una razón concreta: `update` exige un
+ * WHERE único —el id— y el dueño habría que chequearlo aparte. Con
+ * `updateMany` los dos van juntos en el WHERE, así que una mascota ajena
+ * simplemente no matchea y `count` vuelve en 0. No hay forma de olvidarse
+ * el chequeo, porque es la misma consulta.
+ *
+ * Devuelve `null` cuando no se actualizó nada: el handler lo traduce a 404.
+ */
+export async function actualizarMascota(
+  id: string,
+  datos: ActualizarMascotaInput,
+  duenoId: string,
+) {
+  const { count } = await prisma.mascota.updateMany({
+    where: { id, duenoId },
+    data: datos,
+  });
+
+  if (count === 0) return null;
+
+  return obtenerMascotaDeDueno(id, duenoId);
+}
+
+/**
+ * ¿Esta mascota tiene historial cargado?
+ *
+ * La spec dice que una mascota con aplicaciones o certificados no se borra:
+ * la libreta existe para conservar historial. El `onDelete: Restrict` del
+ * schema ya lo impide a nivel base, pero preguntarlo antes permite responder
+ * un 409 con sentido en vez de dejar que Postgres tire un error de foreign
+ * key que nadie atiende y termine en 500.
+ *
+ * Las dos cosas conviven: la verificación da el buen mensaje, la restricción
+ * de la base es la garantía. Una regla de negocio que solo vive en el código
+ * se saltea el día que alguien escribe un script.
+ */
+export async function mascotaTieneHistorial(id: string) {
+  const [aplicaciones, certificados] = await Promise.all([
+    prisma.aplicacion.count({ where: { mascotaId: id } }),
+    prisma.certificado.count({ where: { mascotaId: id } }),
+  ]);
+
+  return aplicaciones + certificados > 0;
+}
+
+/** Borra una mascota del dueño. `false` si no era suya o no existe → 404. */
+export async function borrarMascota(id: string, duenoId: string) {
+  const { count } = await prisma.mascota.deleteMany({ where: { id, duenoId } });
+  return count > 0;
 }
