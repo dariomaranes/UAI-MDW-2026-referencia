@@ -31,16 +31,36 @@ function haceAnios(anios: number): Date {
 
 async function main() {
   // --- Usuarios --------------------------------------------------------
+  // Los ids son FIJOS y legibles, no los cuid() que genera Prisma sola.
+  //
+  // Por qué: hasta la clase 6 no hay sesión, así que los endpoints tienen
+  // el dueño puesto a mano en su `TODO (clase 6)`. Si el seed generara un
+  // id aleatorio en cada corrida, ese TODO apuntaría a un usuario que no
+  // existe y la API entera respondería 404 y 500 sin que nada esté mal.
+  //
+  // Estos dos ids son los que aparecen en los handlers de `app/api/`. Al
+  // llegar la sesión, el id sale del usuario logueado y estos vuelven a ser
+  // cuid() como el resto.
   const duena = await prisma.usuario.upsert({
     where: { email: "ana@ejemplo.com" },
     update: {},
-    create: { email: "ana@ejemplo.com", nombre: "Ana Duarte", rol: Rol.DUENO },
+    create: {
+      id: "duena-de-ejemplo",
+      email: "ana@ejemplo.com",
+      nombre: "Ana Duarte",
+      rol: Rol.DUENO,
+    },
   });
 
   const veterinario = await prisma.usuario.upsert({
     where: { email: "bruno@ejemplo.com" },
     update: {},
-    create: { email: "bruno@ejemplo.com", nombre: "Bruno Sosa", rol: Rol.VETERINARIO },
+    create: {
+      id: "veterinario-de-ejemplo",
+      email: "bruno@ejemplo.com",
+      nombre: "Bruno Sosa",
+      rol: Rol.VETERINARIO,
+    },
   });
 
   // El admin existe porque un veterinario no puede auto-registrarse como tal.

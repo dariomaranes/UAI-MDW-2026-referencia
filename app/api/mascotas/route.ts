@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   // 2. Autorizar. El dueño sale de la sesión del servidor, NUNCA del body.
   //    TODO (clase 6): reemplazar por el usuario real de la sesión y
   //    devolver 401 si no hay sesión.
-  const duenoId = "usuario-de-ejemplo";
+  const duenoId = "duena-de-ejemplo";
 
   // 3. Delegar el acceso a datos.
   const mascota = await crearMascota(resultado.data, duenoId);
