@@ -101,6 +101,10 @@ Criterios de aceptación:
       certificado, entonces queda registrado en estado **solicitado**.
 - [ ] Caso de error: si a la mascota le falta alguna vacuna obligatoria, la solicitud no se crea y
       el sistema **enumera cuáles faltan**.
+- [ ] Dado que la mascota ya tiene un certificado para otro motivo, cuando el dueño solicita uno
+      nuevo, entonces se crea igual: los motivos son independientes.
+- [ ] Caso de error: si ya hay una solicitud **pendiente de emisión** para esa mascota **con ese
+      mismo motivo**, no se crea otra y el sistema informa cuál es la que está esperando.
 
 ### H5 — Emitir un certificado
 **Como** veterinario, **quiero** emitir el certificado de una mascota que está al día, **para**
@@ -154,6 +158,10 @@ revisar a mano.
   de esa mascota están al día.
 - Un certificado **vence** cuando vence la primera de las vacunas obligatorias que lo respaldan,
   **o a los 30 días de emitido, lo que ocurra primero**.
+- Una mascota puede tener **varios certificados a la vez**, siempre que sean de **motivos
+  distintos**. Lo que no puede haber son **dos solicitudes pendientes del mismo motivo**: la segunda
+  no aporta nada y le duplica el trabajo al veterinario que revisa la cola. Un certificado ya
+  emitido no bloquea: pedir otro antes de que venza es renovarlo, y es legítimo.
 - Solo el **veterinario que lo emitió** puede anular un certificado.
 - El **dueño ve únicamente sus propias mascotas**, y solo puede pedir certificados para ellas.
 - El **veterinario no puede auto-registrarse** como tal: la cuenta con rol veterinario la crea un
