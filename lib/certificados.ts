@@ -42,9 +42,16 @@ export function generarCodigoVerificacion(): string {
  * La spec dice: vence cuando vence la primera de las vacunas obligatorias que
  * lo respaldan, O a los 30 días de emitido, lo que ocurra primero.
  *
- * El segundo término ya está implementado. El primero necesita el plan de
- * vacunación de la especie, que es la regla que se arma en la clase 5: por
- * eso `vencimientoDeVacunas` es opcional y hoy llega siempre `null`.
+ * El segundo término está desde la clase 4. El primero llegó en la clase 5:
+ * `vencimientoDeVacunas` lo calcula `primerVencimientoObligatorio` en
+ * `lib/estado-sanitario.ts`, y sigue siendo opcional porque puede ser `null`
+ * de verdad — cuando ninguna obligatoria al día tiene refuerzo, no hay
+ * primera vacuna que venza y manda el tope de 30 días.
+ *
+ * Fijate en lo que NO hubo que tocar para completar la regla: esta función.
+ * Estaba escrita para recibir ese dato desde el día uno, así que enchufarlo
+ * fue pasar un parámetro. Eso es lo que se gana decidiendo dónde vive cada
+ * cosa antes de escribirla.
  *
  * Se calcula UNA VEZ, al emitir, y se guarda. A diferencia del estado
  * sanitario de una mascota —que se calcula al leerlo— esto es parte de lo que

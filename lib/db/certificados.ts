@@ -25,7 +25,13 @@ const CAMPOS_CERTIFICADO = {
   emitidoEn: true,
   vencimiento: true,
   codigoVerificacion: true,
-  mascota: { select: { id: true, nombre: true, especie: true } },
+  // La fecha de nacimiento viaja con el certificado desde la clase 5: la
+  // regla que verifica las vacunas obligatorias la necesita para saber qué
+  // le corresponde a esa mascota por edad. Sin ella, el handler tendría que
+  // hacer una segunda consulta para un dato que ya estaba a mano.
+  mascota: {
+    select: { id: true, nombre: true, especie: true, fechaNacimiento: true },
+  },
 } as const;
 
 /** Los certificados de las mascotas de un dueño. */
