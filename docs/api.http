@@ -257,6 +257,37 @@ Content-Type: application/json
 }
 
 
+### la MISMA solicitud otra vez → 409 + el id de la que ya espera
+# Mandá la de arriba y después esta. La regla salió de probar la API: se podía
+# pedir cincuenta certificados iguales. No era un bug —la spec no decía nada—
+# era un requisito que apareció usando el sistema. Primero se escribió en
+# docs/spec.md y en el ADR 0002, después acá, y recién después en el código.
+#
+# Fijate que la respuesta trae el id de la solicitud que está esperando: el
+# criterio pide informar CUÁL es, no solo que existe.
+POST {{base}}/api/certificados
+Content-Type: application/json
+
+{
+  "mascotaId": "laika",
+  "motivo": "VIAJE",
+  "detalle": "Vuelo a Bariloche"
+}
+
+
+### la misma mascota, OTRO motivo → 201
+# Lo que la regla NO bloquea. Viajar y dejarla en la guardería son dos
+# trámites distintos y conviven: por eso la clave es mascota + motivo, y no
+# solo la mascota.
+POST {{base}}/api/certificados
+Content-Type: application/json
+
+{
+  "mascotaId": "laika",
+  "motivo": "GUARDERIA"
+}
+
+
 ### solicitar para una mascota que NO está al día → 409 + la lista
 # ────────────────────────────────────────────────────────────────────────
 # LA REQUEST DE LA CLASE 5. Hasta ayer esto devolvía 201: el sistema estaba

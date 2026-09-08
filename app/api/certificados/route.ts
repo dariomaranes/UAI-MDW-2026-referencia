@@ -11,6 +11,7 @@ import { solicitarCertificadoSchema } from "@/lib/schemas/certificado";
 import {
   listarCertificadosDeDueno,
   solicitarCertificado,
+  solicitudPendiente,
 } from "@/lib/db/certificados";
 import { obtenerMascotaDeDueno } from "@/lib/db/mascotas";
 import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
@@ -56,7 +57,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Mascota no encontrada" }, { status: 404 });
     }
 
-    // 3. LAS REGLAS. Acá vivía el `TODO (clase 5)`.
+    // 3. LAS REGLAS.
+    //
+    //    La primera es la más barata y la más específica: si ya pidió esto
+    //    mismo y todavía está esperando, no hace falta evaluar nada más.
+    //    Sale del ADR 0002 — apareció probando la API, no de una historia
+    //    original, y por eso primero se escribió en la spec.
+    const pendiente = await solicitudPendiente(mascota.id, resultado.data.motivo);
+
+    if (pendiente) {
+      return NextResponse.json(
+        {
+          error: `Ya hay una solicitud pendiente de emisión para ${mascota.nombre} con ese motivo`,
+          // El id, para que la pantalla pueda llevar al dueño hasta ella en
+          // vez de dejarlo adivinando cuál de todas era.
+          solicitudPendienteId: pendiente.id,
+        },
+        { status: 409 },
+      );
+    }
+
+    //    La segunda es la de la clase 5. Acá vivía el `TODO (clase 5)`.
     //
     //    Tres líneas y ningún `if` con fechas adentro: leer, preguntar,
     //    traducir. Todo el razonamiento —qué vacuna corresponde a esta edad,

@@ -59,6 +59,9 @@ export const motivoCertificadoSchema = z.enum([
   "OTRO",
 ]);
 
+/** Igual que el estado: el tipo sale del schema, no se escribe dos veces. */
+export type MotivoCertificado = z.infer<typeof motivoCertificadoSchema>;
+
 export const solicitarCertificadoSchema = z.object({
   mascotaId: idSchema("Falta indicar la mascota"),
   motivo: motivoCertificadoSchema,

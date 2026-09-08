@@ -121,9 +121,20 @@ código único, congela el vencimiento y guarda quién lo emitió. Nada de eso e
 
 | Operación | Qué choca |
 |---|---|
+| `POST /api/certificados` | Ya hay una solicitud pendiente para esa mascota **con ese mismo motivo**. La respuesta trae el id de la que está esperando ([ADR 0002](./adr/0002-solicitudes-pendientes-duplicadas.md)) |
 | `POST /api/certificados` | A la mascota le falta alguna vacuna obligatoria. La respuesta **enumera cuáles** |
 | `POST /api/certificados/:id/emision` | Venció una obligatoria entre la solicitud y la emisión, o el certificado ya está emitido |
 | `POST /api/certificados/:id/anulacion` | El certificado no está emitido |
+
+**Varios certificados a la vez, sí; dos veces el mismo trámite, no.** Viajar y dejar a la mascota
+en una guardería son dos motivos distintos y conviven sin problema. Lo que se rechaza es pedir dos
+veces lo mismo mientras el primero todavía espera, porque la segunda solicitud no aporta nada y le
+duplica la cola al veterinario. Un certificado ya **emitido** no bloquea: pedir otro antes de que
+venza es renovarlo.
+
+Ojo con la última columna del catálogo para esta fila: dice **la consulta**, no *regla*. No todo
+`409` nace de una función pura — acá no hay nada que calcular, la consulta **es** la decisión, igual
+que el `mascotaTieneHistorial` del `DELETE` de mascotas.
 
 ---
 
@@ -153,7 +164,7 @@ Arriba, la columna **Errores** dice *qué status* devuelve cada operación. Acá
 **qué situación concreta produce cada uno y qué ve el usuario.**
 
 Un número solo no alcanza. `409` en `POST /api/certificados` puede ser "le falta la antirrábica"
-o "ya tiene uno vigente", y al dueño hay que decirle cuál. Cada fila de esta tabla sale de un
+o "ya hay una solicitud pendiente del mismo motivo", y al dueño hay que decirle cuál. Cada fila de esta tabla sale de un
 *"caso de error"* de un criterio de aceptación de `spec.md`: si una fila no tiene historia de
 origen, sobra; si un caso de error de la spec no aparece acá, es una regla que nadie implementó.
 
@@ -200,6 +211,7 @@ mal es mezclar los dos sin criterio. **En este proyecto: `400` para todo lo que 
 | `POST /api/mascotas/:id/aplicaciones` | El `vacunaId` no está en el catálogo | `404` | "Vacuna no encontrada" | La consulta |
 | `POST /api/mascotas/:id/aplicaciones` | La vacuna es de otra especie | `409` | "Antirrábica del catálogo corresponde a GATO, y Laika es PERRO" | Regla |
 | `POST /api/mascotas/:id/aplicaciones` | La mascota no alcanza la edad mínima (H2) | `409` | "Antirrábica se aplica a partir de los 3 meses" + `edadMinimaMeses` | Regla |
+| `POST /api/certificados` | Ya hay una solicitud pendiente del mismo motivo (H4) | `409` | "Ya hay una solicitud pendiente de emisión para Laika con ese motivo" + `solicitudPendienteId` | La consulta |
 | `POST /api/certificados` | Le falta alguna vacuna obligatoria (H4) | `409` | "La mascota no está al día con las vacunas obligatorias" + `faltantes` | Regla |
 | `POST /api/certificados` | La mascota no existe o no es del solicitante | `404` | "Mascota no encontrada" | La consulta |
 | `POST /api/certificados/:id/emision` | Venció una obligatoria entre la solicitud y la emisión (H5) | `409` | "La mascota dejó de estar al día…" + `faltantes` | Regla |

@@ -6,7 +6,10 @@
  * uno tiene su función y no son un `update` genérico del campo `estado`.
  */
 import { prisma } from "@/lib/db/client";
-import type { SolicitarCertificadoInput } from "@/lib/schemas/certificado";
+import type {
+  MotivoCertificado,
+  SolicitarCertificadoInput,
+} from "@/lib/schemas/certificado";
 
 const LIMITE_POR_DEFECTO = 50;
 
@@ -53,6 +56,28 @@ export async function obtenerCertificado(id: string) {
   return prisma.certificado.findUnique({
     where: { id },
     select: CAMPOS_CERTIFICADO,
+  });
+}
+
+/**
+ * La solicitud pendiente de esta mascota para este motivo, si existe.
+ *
+ * Es una regla de negocio que NO necesita una función pura: no hay nada que
+ * calcular, la consulta ES la decisión. Mismo caso que `mascotaTieneHistorial`
+ * de la clase 4 — no todo 409 nace de un archivo de `lib/`.
+ *
+ * Devuelve el certificado y no un booleano por la razón de siempre: el
+ * criterio de aceptación pide informar CUÁL es la que está esperando, así que
+ * el handler necesita su id para pasárselo al dueño.
+ */
+export async function solicitudPendiente(
+  mascotaId: string,
+  motivo: MotivoCertificado,
+) {
+  return prisma.certificado.findFirst({
+    where: { mascotaId, motivo, estado: "SOLICITADO" },
+    orderBy: { solicitadoEn: "asc" },
+    select: { id: true, solicitadoEn: true },
   });
 }
 
