@@ -5,6 +5,9 @@
  * la misma regla está escrita en dos lugares, tarde o temprano quedan
  * distintas.
  */
+// Traduce al castellano los mensajes que arma Zod solo. Se importa por su
+// efecto, no exporta nada: sin esta línea, "Required" llega al usuario.
+import "./mensajes";
 import { z } from "zod";
 import type { Especie as EspeciePrisma } from "@prisma/client";
 

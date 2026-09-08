@@ -4,6 +4,9 @@
  * Sale de la historia H1 de `docs/spec.md`. Cada límite de acá contesta una
  * pregunta que alguien tuvo que decidir: no son números puestos al azar.
  */
+// Traduce al castellano los mensajes que arma Zod solo. Se importa por su
+// efecto, no exporta nada: sin esta línea, "Required" llega al usuario.
+import "./mensajes";
 import { z } from "zod";
 import { especieSchema, fechaNoFutura } from "./comunes";
 

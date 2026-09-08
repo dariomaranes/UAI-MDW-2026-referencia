@@ -5,6 +5,9 @@
  * varias veterinarias y una veterinaria tiene varios veterinarios—, que es uno
  * de los requisitos del núcleo obligatorio del proyecto.
  */
+// Traduce al castellano los mensajes que arma Zod solo. Se importa por su
+// efecto, no exporta nada: sin esta línea, "Required" llega al usuario.
+import "./mensajes";
 import { z } from "zod";
 
 export const crearVeterinariaSchema = z.object({

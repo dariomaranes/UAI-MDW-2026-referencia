@@ -9,6 +9,9 @@
  * intervalo de refuerzo, el sistema puede calcular solo qué le falta a cada
  * mascota.
  */
+// Traduce al castellano los mensajes que arma Zod solo. Se importa por su
+// efecto, no exporta nada: sin esta línea, "Required" llega al usuario.
+import "./mensajes";
 import { z } from "zod";
 import { especieSchema } from "./comunes";
 

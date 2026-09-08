@@ -5,6 +5,9 @@
  * del sistema: tiene estados que cambian, y por eso el estado se modela como
  * unión literal y no como texto libre.
  */
+// Traduce al castellano los mensajes que arma Zod solo. Se importa por su
+// efecto, no exporta nada: sin esta línea, "Required" llega al usuario.
+import "./mensajes";
 import { z } from "zod";
 import { idSchema } from "./comunes";
 
