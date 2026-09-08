@@ -29,6 +29,12 @@ function haceAnios(anios: number): Date {
   return fecha;
 }
 
+function haceMeses(meses: number): Date {
+  const fecha = new Date();
+  fecha.setMonth(fecha.getMonth() - meses);
+  return fecha;
+}
+
 async function main() {
   // --- Usuarios --------------------------------------------------------
   // Los ids son FIJOS y legibles, no los cuid() que genera Prisma sola.
@@ -86,12 +92,19 @@ async function main() {
   // --- Catálogo de vacunas ---------------------------------------------
   // Es el "plan de vacunación": de acá salen la edad mínima y el refuerzo con
   // los que el sistema calcula qué le falta a cada mascota.
+  //
+  // Los ids también son fijos —`antirrabica-perro`, `triple-felina`— porque
+  // los ejemplos de `docs/api.http` los escriben a mano. Ojo con el detalle
+  // que se ve mejor acá que en ningún otro lado: la MISMA vacuna existe dos
+  // veces, para perro y para gato, con edades mínimas distintas. Son dos
+  // filas y dos ids, y confundirlas es el 409 de "esa vacuna no corresponde
+  // a la especie de la mascota".
   const catalogo = [
-    { nombre: "Antirrábica", especie: Especie.PERRO, edadMinimaMeses: 3, intervaloRefuerzoDias: 365, obligatoria: true },
-    { nombre: "Quíntuple", especie: Especie.PERRO, edadMinimaMeses: 2, intervaloRefuerzoDias: 365, obligatoria: true },
-    { nombre: "Tos de las perreras", especie: Especie.PERRO, edadMinimaMeses: 4, intervaloRefuerzoDias: 365, obligatoria: false },
-    { nombre: "Antirrábica", especie: Especie.GATO, edadMinimaMeses: 3, intervaloRefuerzoDias: 365, obligatoria: true },
-    { nombre: "Triple felina", especie: Especie.GATO, edadMinimaMeses: 2, intervaloRefuerzoDias: 365, obligatoria: true },
+    { id: "antirrabica-perro", nombre: "Antirrábica", especie: Especie.PERRO, edadMinimaMeses: 3, intervaloRefuerzoDias: 365, obligatoria: true },
+    { id: "quintuple-perro", nombre: "Quíntuple", especie: Especie.PERRO, edadMinimaMeses: 2, intervaloRefuerzoDias: 365, obligatoria: true },
+    { id: "tos-perreras", nombre: "Tos de las perreras", especie: Especie.PERRO, edadMinimaMeses: 4, intervaloRefuerzoDias: 365, obligatoria: false },
+    { id: "antirrabica-gato", nombre: "Antirrábica", especie: Especie.GATO, edadMinimaMeses: 3, intervaloRefuerzoDias: 365, obligatoria: true },
+    { id: "triple-felina", nombre: "Triple felina", especie: Especie.GATO, edadMinimaMeses: 2, intervaloRefuerzoDias: 365, obligatoria: true },
   ];
 
   for (const vacuna of catalogo) {
@@ -99,26 +112,29 @@ async function main() {
       // La clave compuesta del @@unique([nombre, especie]): la misma vacuna
       // puede existir para perro y para gato con reglas distintas.
       where: { nombre_especie: { nombre: vacuna.nombre, especie: vacuna.especie } },
-      update: {},
+      update: { id: vacuna.id },
       create: vacuna,
     });
   }
 
-  const antirrabicaPerro = await prisma.vacuna.findUniqueOrThrow({
-    where: { nombre_especie: { nombre: "Antirrábica", especie: Especie.PERRO } },
-  });
-  const quintuple = await prisma.vacuna.findUniqueOrThrow({
-    where: { nombre_especie: { nombre: "Quíntuple", especie: Especie.PERRO } },
-  });
-  const antirrabicaGato = await prisma.vacuna.findUniqueOrThrow({
-    where: { nombre_especie: { nombre: "Antirrábica", especie: Especie.GATO } },
-  });
-
   // --- Mascotas ---------------------------------------------------------
+  // Ids FIJOS y legibles, por la misma razón que los de los usuarios: los
+  // ejemplos de `docs/api.http` las referencian por id, y con un cuid()
+  // aleatorio habría que copiarlo a mano en cada corrida. Desde la clase 5
+  // eso importa más que antes, porque las requests ya no dan lo mismo según
+  // la mascota: "solicitar un certificado" es 201 para Laika y 409 para Mishi.
+  //
+  // El `update: { id }` no es decorativo: reasigna el id a las mascotas que
+  // quedaron de corridas anteriores, cuando todavía era aleatorio. Funciona
+  // porque las FK del schema son `ON UPDATE CASCADE` —Prisma las genera así—
+  // y el historial viaja solo. Ojo con la asimetría, que es a propósito:
+  // CASCADE al actualizar, RESTRICT al borrar. Renombrar es seguro; borrar
+  // historial, no.
   const laika = await prisma.mascota.upsert({
     where: { chip: "982000123456789" },
-    update: {},
+    update: { id: "laika" },
     create: {
+      id: "laika",
       nombre: "Laika",
       especie: Especie.PERRO,
       fechaNacimiento: haceAnios(3),
@@ -129,12 +145,36 @@ async function main() {
 
   const mishi = await prisma.mascota.upsert({
     where: { chip: "982000987654321" },
-    update: {},
+    update: { id: "mishi" },
     create: {
+      id: "mishi",
       nombre: "Mishi",
       especie: Especie.GATO,
       fechaNacimiento: haceAnios(2),
       chip: "982000987654321",
+      duenoId: duena.id,
+    },
+  });
+
+  // Rocco: CACHORRO, un mes de vida y ninguna vacuna cargada.
+  //
+  // No es relleno: es el caso borde de la regla de la clase 5. A un mes no le
+  // corresponde NINGUNA obligatoria —la quíntuple es a los 2 meses y la
+  // antirrábica a los 3— así que su estado sanitario da todo NO_CORRESPONDE y
+  // puede pedir un certificado sin tener una sola vacuna aplicada.
+  //
+  // Parece un bug y es la spec: "todas las vacunas obligatorias para la
+  // especie Y LA EDAD de esa mascota". Si la regla tratara a Rocco como
+  // "pendiente", ningún cachorro podría viajar nunca.
+  const rocco = await prisma.mascota.upsert({
+    where: { chip: "982000111222333" },
+    update: { id: "rocco" },
+    create: {
+      id: "rocco",
+      nombre: "Rocco",
+      especie: Especie.PERRO,
+      fechaNacimiento: haceMeses(1),
+      chip: "982000111222333",
       duenoId: duena.id,
     },
   });
@@ -144,10 +184,10 @@ async function main() {
   // recrean. El orden importa: primero los certificados, porque la FK a
   // Mascota es Restrict y la base no deja borrar lo que todavía se referencia.
   await prisma.certificado.deleteMany({
-    where: { mascotaId: { in: [laika.id, mishi.id] } },
+    where: { mascotaId: { in: [laika.id, mishi.id, rocco.id] } },
   });
   await prisma.aplicacion.deleteMany({
-    where: { mascotaId: { in: [laika.id, mishi.id] } },
+    where: { mascotaId: { in: [laika.id, mishi.id, rocco.id] } },
   });
 
   // Laika: AL DÍA. Las dos obligatorias aplicadas y con refuerzo lejos.
@@ -155,14 +195,14 @@ async function main() {
     data: [
       {
         mascotaId: laika.id,
-        vacunaId: antirrabicaPerro.id,
+        vacunaId: "antirrabica-perro",
         veterinarioId: veterinario.id,
         fecha: enDias(-30),
         proximaDosis: enDias(335),
       },
       {
         mascotaId: laika.id,
-        vacunaId: quintuple.id,
+        vacunaId: "quintuple-perro",
         veterinarioId: veterinario.id,
         fecha: enDias(-20),
         proximaDosis: enDias(345),
@@ -178,7 +218,7 @@ async function main() {
   await prisma.aplicacion.create({
     data: {
       mascotaId: mishi.id,
-      vacunaId: antirrabicaGato.id,
+      vacunaId: "antirrabica-gato",
       veterinarioId: veterinario.id,
       fecha: enDias(-400),
       proximaDosis: enDias(-35),
@@ -199,8 +239,8 @@ async function main() {
     },
   });
 
-  console.log("Seed completo: 3 usuarios, 5 vacunas, 2 mascotas, 3 aplicaciones.");
-  console.log("  Laika → al día · Mishi → antirrábica vencida");
+  console.log("Seed completo: 3 usuarios, 5 vacunas, 3 mascotas, 3 aplicaciones.");
+  console.log("  Laika → al día · Mishi → antirrábica vencida · Rocco → cachorro");
 }
 
 main()
