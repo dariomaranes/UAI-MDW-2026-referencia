@@ -50,12 +50,15 @@ GET {{base}}/api/mascotas
 
 
 ### la ficha de una mascota → 200
-# {{listarMascotas.response.body.$[0].id}} es JSONPath: "el id del primer
-# elemento del array que devolvió la request llamada listarMascotas".
+# `laika` es un id de VERDAD, no un placeholder: el seed les pone id fijo y
+# legible a sus tres mascotas, igual que a los usuarios. Las que crea la API
+# tienen un cuid() aleatorio, como corresponde.
 #
-# Hay que mandar la de arriba primero: la variable se resuelve con la última
-# respuesta que esa request haya recibido.
-GET {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}
+# Las tres, y para qué sirve cada una:
+#   laika → al día con las dos obligatorias
+#   mishi → antirrábica VENCIDA, y la triple felina nunca aplicada
+#   rocco → cachorro de un mes: todavía no le corresponde ninguna
+GET {{base}}/api/mascotas/laika
 
 
 ### una mascota que no existe → 404
@@ -131,11 +134,105 @@ DELETE {{base}}/api/mascotas/{{crearMascota.response.body.id}}
 #
 # 409 y no 400: el cliente no mandó nada mal. Es el estado actual el que
 # choca con la operación.
-DELETE {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}
+DELETE {{base}}/api/mascotas/laika
 
 
 ###############################################################################
-# 2. CERTIFICADOS — la operación que NO es un ABM
+# 2. APLICACIONES Y ESTADO SANITARIO — las reglas de la clase 5
+#
+# Acá se ve la diferencia que ordena toda la clase: las tres reglas de la H2
+# son igual de importantes y caen en capas distintas, según CON QUÉ ALCANZA
+# para decidirlas. Miren el status de cada una.
+###############################################################################
+
+### el historial de una mascota → 200
+# Anidado bajo la mascota: una aplicación no tiene sentido sin ella.
+GET {{base}}/api/mascotas/laika/aplicaciones
+
+
+### el estado sanitario → 200
+# EL ENDPOINT QUE NO LEE UNA COLUMNA. En la base no existe ningún campo
+# `estado`: cada vacuna se clasifica al consultarla, comparando las
+# aplicaciones contra el reloj de ahora.
+#
+# Laika da AL_DIA en las dos obligatorias.
+GET {{base}}/api/mascotas/laika/estado-sanitario
+
+
+### el estado sanitario de Mishi → 200, y una VENCIDA
+# Nadie tocó este dato: lo venció el calendario. Es la prueba de por qué el
+# estado se calcula y no se guarda — una columna estaría mintiendo desde el
+# día que venció hasta que algún proceso la corrija.
+GET {{base}}/api/mascotas/mishi/estado-sanitario
+
+
+### el estado sanitario del cachorro → 200, y todo NO_CORRESPONDE
+# EL CASO QUE SE OLVIDA SIEMPRE. Rocco tiene un mes: no está "pendiente" de
+# la antirrábica, todavía no le toca. Sin este cuarto estado, ningún cachorro
+# podría tener un certificado nunca.
+GET {{base}}/api/mascotas/rocco/estado-sanitario
+
+
+### registrar una aplicación → 201
+# Fijate en la respuesta: `proximaDosis` viene calculada. No la mandamos
+# nosotros — la calcula el servidor sumando el intervalo de refuerzo del
+# catálogo. Es un dato derivado, y por eso salió del body en la clase 5.
+#
+# El `veterinarioId` tampoco va en el body: sale de la sesión (clase 6).
+POST {{base}}/api/mascotas/laika/aplicaciones
+Content-Type: application/json
+
+{
+  "vacunaId": "antirrabica-perro",
+  "fecha": "2026-09-01",
+  "observaciones": "PRUEBA-clase-05"
+}
+
+
+### la fecha de aplicación es futura → 400
+# REGLA 1 de la H2. Es una regla de negocio y aun así la agarra Zod: se
+# decide mirando el body y el calendario, sin preguntarle nada al sistema.
+POST {{base}}/api/mascotas/laika/aplicaciones
+Content-Type: application/json
+
+{
+  "vacunaId": "antirrabica-perro",
+  "fecha": "2099-01-01"
+}
+
+
+### la vacuna es de otra especie → 409
+# REGLA 2. El body está PERFECTO y el id existe: lo que no cierra es el
+# estado del sistema. Por eso 409 y no 400 — no se arregla mandando el
+# request distinto.
+POST {{base}}/api/mascotas/laika/aplicaciones
+Content-Type: application/json
+
+{
+  "vacunaId": "antirrabica-gato",
+  "fecha": "2026-09-01"
+}
+
+
+### la mascota no llega a la edad mínima → 409
+# REGLA 3, y la que necesitó DOS consultas para poder opinar: la fecha de
+# nacimiento de la mascota y la edad mínima del catálogo. Ningún schema puede
+# con esto.
+#
+# Miren la respuesta: además del mensaje viene `edadMinimaMeses`. El dato
+# estructurado va aparte del texto, para que la pantalla no tenga que parsear
+# castellano.
+POST {{base}}/api/mascotas/rocco/aplicaciones
+Content-Type: application/json
+
+{
+  "vacunaId": "antirrabica-perro",
+  "fecha": "2026-09-01"
+}
+
+
+###############################################################################
+# 3. CERTIFICADOS — la operación que NO es un ABM
 #
 # Esta es la parte importante del dominio. Fíjense en la diferencia entre
 # solicitar (un POST a la colección, un ABM común) y emitir (un POST a un
@@ -154,9 +251,45 @@ POST {{base}}/api/certificados
 Content-Type: application/json
 
 {
-  "mascotaId": "{{listarMascotas.response.body.$[0].id}}",
+  "mascotaId": "laika",
   "motivo": "VIAJE",
   "detalle": "Vuelo a Bariloche"
+}
+
+
+### solicitar para una mascota que NO está al día → 409 + la lista
+# ────────────────────────────────────────────────────────────────────────
+# LA REQUEST DE LA CLASE 5. Hasta ayer esto devolvía 201: el sistema estaba
+# incumpliendo la spec EN SILENCIO, que es la única forma en que se incumple
+# una regla de negocio.
+#
+# Miren el cuerpo de la respuesta, no solo el status: viene `faltantes` con
+# los nombres. El criterio de aceptación de la H4 pide que la respuesta
+# ENUMERE cuáles faltan, así que ese array no es un adorno, es el criterio.
+#
+# Y miren de dónde sale: no hay un solo `if` con fechas en el handler. Lo
+# decide `vacunasFaltantes` en lib/estado-sanitario.ts, que se prueba con
+# `npm test` sin base y sin servidor.
+# ────────────────────────────────────────────────────────────────────────
+POST {{base}}/api/certificados
+Content-Type: application/json
+
+{
+  "mascotaId": "mishi",
+  "motivo": "VIAJE"
+}
+
+
+### solicitar para el cachorro → 201, aunque no tenga NINGUNA vacuna
+# Parece un bug y es la spec: "todas las obligatorias para la especie Y LA
+# EDAD de esa mascota". A un mes no le corresponde ninguna, así que está al
+# día. Si la regla lo tratara como "pendiente", ningún cachorro viajaría.
+POST {{base}}/api/certificados
+Content-Type: application/json
+
+{
+  "mascotaId": "rocco",
+  "motivo": "VIAJE"
 }
 
 
@@ -204,8 +337,16 @@ POST {{base}}/api/certificados/{{solicitar.response.body.id}}/emision
 POST {{base}}/api/certificados/no-existe/emision
 
 
+### el detalle de un certificado → 200
+# El hermano tranquilo de la emisión. Devuelve el detalle completo a quien
+# tiene sesión; comparalo con la verificación pública de la sección 4, que
+# lee el mismo certificado y muestra lo mínimo. Dos `select` separados a
+# propósito.
+GET {{base}}/api/certificados/{{solicitar.response.body.id}}
+
+
 ###############################################################################
-# 3. VERIFICACIÓN PÚBLICA — el único endpoint sin sesión
+# 4. VERIFICACIÓN PÚBLICA — el único endpoint sin sesión
 ###############################################################################
 
 ### verificar el certificado recién emitido → 200
@@ -241,23 +382,9 @@ GET {{base}}/api/verificacion/hola
 # machete de la sintaxis y como recordatorio de lo que falta.
 ###############################################################################
 
-### el historial de aplicaciones de una mascota (clase 5)
-# GET {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}/aplicaciones
-
-
-### registrar una aplicación (clase 5)
-# POST {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}/aplicaciones
-# Content-Type: application/json
-#
-# {
-#   "vacunaId": "...",
-#   "fecha": "2026-08-01"
-# }
-
-
-### el estado sanitario, que se CALCULA (clase 5)
-# GET {{base}}/api/mascotas/{{listarMascotas.response.body.$[0].id}}/estado-sanitario
-
-
 ### anular un certificado — solo el veterinario que lo emitió (clase 6)
+# Es la última fila del contrato que sigue sin código, y no es un olvido: su
+# regla de negocio es QUIÉN la ejecuta, así que no se puede escribir sin
+# sesión. Por eso queda acá y no como un TODO adentro de un handler que no
+# existe.
 # POST {{base}}/api/certificados/{{solicitar.response.body.id}}/anulacion
