@@ -12,10 +12,10 @@ Las cuatro columnas son las que se piden en el taller de la clase 4:
 - **Errores** — los status que devuelve además del camino feliz. Salen de los
   *"caso de error"* de los criterios de aceptación.
 
-> El `401` aparece en toda operación que exige sesión. Hoy no hay sesión —llega en la clase 6— y
-> por eso los handlers tienen su `TODO (clase 6)` escrito donde va. El contrato se escribe
-> completo igual: **un TODO escrito es una decisión postergada; un TODO ausente es una que nadie
-> tomó.**
+> El `401` aparece en toda operación que exige sesión, y desde la clase 6 **es real**: lo lanza
+> `requerirUsuario` y lo traduce `responderError`. Los `TODO (clase 6)` que marcaban su lugar
+> durante tres clases ya no existen. Quedó demostrado lo que se dijo al escribirlos: **un TODO
+> escrito es una decisión postergada; un TODO ausente es una que nadie tomó.**
 
 ---
 
@@ -25,7 +25,7 @@ La entidad principal del dominio, y la única con CRUD completo.
 
 | Método y ruta | Qué hace | Rol | Errores |
 |---|---|---|---|
-| `GET /api/mascotas` | Lista las mascotas del dueño de la sesión | Dueño | 401 |
+| `GET /api/mascotas` | Las mascotas propias. Para el dueño, las suyas; para el veterinario, sus **pacientes** —las que atendió— | Dueño · Veterinario | 401 |
 | `POST /api/mascotas` | Registra una mascota | Dueño | 400, 401 |
 | `GET /api/mascotas/:id` | La ficha de una mascota | Dueño (la suya) | 401, 404 |
 | `PATCH /api/mascotas/:id` | Corrige datos de la mascota | Dueño (la suya) | 400, 401, 404 |
@@ -218,8 +218,10 @@ mal es mezclar los dos sin criterio. **En este proyecto: `400` para todo lo que 
 | `POST /api/certificados/:id/emision` | El certificado ya está emitido o anulado | `409` | "El certificado no está pendiente de emisión (EMITIDO)" | El WHERE del `updateMany` |
 | `POST /api/certificados/:id/anulacion` | El certificado no está emitido | `409` | "El certificado no está emitido" | El WHERE del `updateMany` |
 | `GET /api/verificacion/:codigo` | El código no existe **o tiene formato inválido** | `404` | "No encontrado", a secas (H6) | La consulta |
-| *Cualquiera* | Sin sesión | `401` | "No autenticado" | `requerirUsuario` — **clase 6** |
-| *Cualquiera* | Con sesión y sin el rol necesario | `403` | "No podés realizar esta operación" | `requerirUsuario` — **clase 6** |
+| *Cualquiera* | Sin sesión | `401` | "No autenticado" | `requerirUsuario` → `responderError` |
+| *Cualquiera* | Con sesión y sin el rol necesario | `403` | "No podés realizar esta operación" | `requerirUsuario("ROL")` → `responderError` |
+| `GET·PATCH·DELETE` de un recurso ajeno | El recurso existe pero es de otro dueño | `404` | El mismo mensaje que si no existiera | La consulta (el id de la sesión en el WHERE) |
+| `POST /api/certificados/:id/anulacion` | Lo emitió otro veterinario | `409` | "El certificado no está emitido" | El WHERE del `updateMany` (`emisorId`) |
 | *Cualquiera* | Se rompió algo del lado del servidor | `500` | "Error interno", **sin detalles** | El `catch` del handler |
 
 ### Tres decisiones que se leen en la tabla
@@ -250,12 +252,18 @@ estado real del repositorio:
 | 3 | `POST` y `GET` de `/api/mascotas`, como ejemplo del patrón |
 | 4 | Mascotas, certificados, emisión y verificación pública |
 | 5 | Las aplicaciones, el estado sanitario, y las reglas de negocio con sus `409` |
-| 6 | La sesión: desaparecen los `TODO (clase 6)` y los `401` empiezan a ser reales |
+| 6 | La sesión: desaparecen los `TODO (clase 6)`, los `401` y `403` son reales, y se escribe la **anulación** |
 
 De la clase 5 salieron `lib/estado-sanitario.ts` —las reglas del plan de vacunación, sin Prisma y
-sin Next, con sus tests— y el `try/catch` de cada handler. Lo único que sigue pendiente de esta
-tabla es la **anulación**: es la única operación que no se puede escribir sin sesión, porque su
-regla de negocio es *quién* la ejecuta —solo el veterinario que lo emitió—.
+sin Next, con sus tests— y el `try/catch` de cada handler.
+
+De la clase 6 salió la **sesión**, y con ella la última fila del contrato que no tenía código: la
+**anulación**. No faltaba por tiempo, faltaba porque su regla de negocio es *quién* la ejecuta
+—solo el veterinario que lo emitió—, y eso no se puede escribir sin saber quién llama. Su handler
+son trece líneas, porque `anularCertificado` ya llevaba las tres condiciones en el WHERE desde la
+clase 4, esperando el segundo parámetro real.
+
+**El contrato está completo: todas las filas tienen código.**
 
 Las operaciones que todavía no existen están escritas y **comentadas** en `docs/api.http`, así
 que se puede ver la sintaxis antes de que el endpoint responda.

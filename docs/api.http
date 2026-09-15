@@ -35,6 +35,28 @@
 # sus requests de prueba al servidor de un desconocido. (Nos pasó: el obvio
 # para este proyecto ya estaba tomado, y por eso este se llama como el repo.)
 
+# ---------------------------------------------------------------------------
+# La cookie de sesión (clase 6)
+# ---------------------------------------------------------------------------
+# Desde la clase 6 la API pide sesión, así que casi todas las requests de este
+# archivo necesitan la cookie que Auth.js dejó en el navegador.
+#
+# Cómo se consigue:
+#   1. Iniciar sesión en {{base}} con el botón de Google.
+#   2. Abrir las herramientas de desarrollo → Application → Cookies.
+#   3. Copiar el VALOR de `authjs.session-token` y pegarlo abajo.
+#      En producción la cookie se llama `__Secure-authjs.session-token`.
+#
+# Es un secreto: no se commitea con un valor real. El archivo se sube con las
+# líneas vacías, igual que `.env.example`.
+#
+# Para probar el 403 hace falta una segunda cookie, la de una cuenta con el
+# otro rol. La forma más rápida de tener un veterinario es que el mail
+# sembrado en `prisma/seed.ts` sea el de la cuenta con la que se inicia sesión.
+
+@sesionDuena = authjs.session-token=
+@sesionVeterinario = authjs.session-token=
+
 
 ###############################################################################
 # 1. MASCOTAS — el CRUD de la entidad principal
@@ -47,6 +69,7 @@
 # respuesta. Así se recorre el flujo entero sin copiar un solo id a mano.
 # @name listarMascotas
 GET {{base}}/api/mascotas
+Cookie: {{sesionDuena}}
 
 
 ### la ficha de una mascota → 200
@@ -59,12 +82,14 @@ GET {{base}}/api/mascotas
 #   mishi → antirrábica VENCIDA, y la triple felina nunca aplicada
 #   rocco → cachorro de un mes: todavía no le corresponde ninguna
 GET {{base}}/api/mascotas/laika
+Cookie: {{sesionDuena}}
 
 
 ### una mascota que no existe → 404
 # Un id inventado no es un error del servidor. Si esto devuelve 500, hay un
 # bug; si devuelve 200 con null, hay un bug peor.
 GET {{base}}/api/mascotas/no-existe
+Cookie: {{sesionDuena}}
 
 
 ### crear una mascota con datos inválidos → 400
@@ -75,6 +100,7 @@ GET {{base}}/api/mascotas/no-existe
 # La línea en blanco que hay entre el header y el body NO es decorativa:
 # sin ella el body no se manda.
 POST {{base}}/api/mascotas
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -88,6 +114,7 @@ Content-Type: application/json
 # H1 dice que una mascota no puede haber nacido en el futuro. Está en el
 # schema de Zod, así que se rechaza en el paso 1 del handler.
 POST {{base}}/api/mascotas
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -102,6 +129,7 @@ Content-Type: application/json
 # la que un 201 no va vacío: si no, el cliente tiene que pedirlo de nuevo.
 # @name crearMascota
 POST {{base}}/api/mascotas
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -115,6 +143,7 @@ Content-Type: application/json
 # PATCH lleva SOLO los campos que cambian, no el objeto entero. El schema es
 # `crearMascotaSchema.partial()`: una definición, dos usos.
 PATCH {{base}}/api/mascotas/{{crearMascota.response.body.id}}
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -126,6 +155,7 @@ Content-Type: application/json
 # 204 = salió bien y no hay nada que devolver. El panel de respuesta va a
 # aparecer vacío, y está bien: un DELETE no devuelve body.
 DELETE {{base}}/api/mascotas/{{crearMascota.response.body.id}}
+Cookie: {{sesionDuena}}
 
 
 ### borrar una mascota CON historial → 409
@@ -135,6 +165,7 @@ DELETE {{base}}/api/mascotas/{{crearMascota.response.body.id}}
 # 409 y no 400: el cliente no mandó nada mal. Es el estado actual el que
 # choca con la operación.
 DELETE {{base}}/api/mascotas/laika
+Cookie: {{sesionDuena}}
 
 
 ###############################################################################
@@ -148,6 +179,7 @@ DELETE {{base}}/api/mascotas/laika
 ### el historial de una mascota → 200
 # Anidado bajo la mascota: una aplicación no tiene sentido sin ella.
 GET {{base}}/api/mascotas/laika/aplicaciones
+Cookie: {{sesionDuena}}
 
 
 ### el estado sanitario → 200
@@ -157,6 +189,7 @@ GET {{base}}/api/mascotas/laika/aplicaciones
 #
 # Laika da AL_DIA en las dos obligatorias.
 GET {{base}}/api/mascotas/laika/estado-sanitario
+Cookie: {{sesionDuena}}
 
 
 ### el estado sanitario de Mishi → 200, y una VENCIDA
@@ -164,6 +197,7 @@ GET {{base}}/api/mascotas/laika/estado-sanitario
 # estado se calcula y no se guarda — una columna estaría mintiendo desde el
 # día que venció hasta que algún proceso la corrija.
 GET {{base}}/api/mascotas/mishi/estado-sanitario
+Cookie: {{sesionDuena}}
 
 
 ### el estado sanitario del cachorro → 200, y todo NO_CORRESPONDE
@@ -171,6 +205,7 @@ GET {{base}}/api/mascotas/mishi/estado-sanitario
 # la antirrábica, todavía no le toca. Sin este cuarto estado, ningún cachorro
 # podría tener un certificado nunca.
 GET {{base}}/api/mascotas/rocco/estado-sanitario
+Cookie: {{sesionDuena}}
 
 
 ### registrar una aplicación → 201
@@ -180,6 +215,7 @@ GET {{base}}/api/mascotas/rocco/estado-sanitario
 #
 # El `veterinarioId` tampoco va en el body: sale de la sesión (clase 6).
 POST {{base}}/api/mascotas/laika/aplicaciones
+Cookie: {{sesionVeterinario}}
 Content-Type: application/json
 
 {
@@ -193,6 +229,7 @@ Content-Type: application/json
 # REGLA 1 de la H2. Es una regla de negocio y aun así la agarra Zod: se
 # decide mirando el body y el calendario, sin preguntarle nada al sistema.
 POST {{base}}/api/mascotas/laika/aplicaciones
+Cookie: {{sesionVeterinario}}
 Content-Type: application/json
 
 {
@@ -206,6 +243,7 @@ Content-Type: application/json
 # estado del sistema. Por eso 409 y no 400 — no se arregla mandando el
 # request distinto.
 POST {{base}}/api/mascotas/laika/aplicaciones
+Cookie: {{sesionVeterinario}}
 Content-Type: application/json
 
 {
@@ -223,6 +261,7 @@ Content-Type: application/json
 # estructurado va aparte del texto, para que la pantalla no tenga que parsear
 # castellano.
 POST {{base}}/api/mascotas/rocco/aplicaciones
+Cookie: {{sesionVeterinario}}
 Content-Type: application/json
 
 {
@@ -241,6 +280,7 @@ Content-Type: application/json
 
 ### los certificados del dueño → 200
 GET {{base}}/api/certificados
+Cookie: {{sesionDuena}}
 
 
 ### solicitar un certificado → 201
@@ -248,6 +288,7 @@ GET {{base}}/api/certificados
 # asignan recién al emitir.
 # @name solicitar
 POST {{base}}/api/certificados
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -266,6 +307,7 @@ Content-Type: application/json
 # Fijate que la respuesta trae el id de la solicitud que está esperando: el
 # criterio pide informar CUÁL es, no solo que existe.
 POST {{base}}/api/certificados
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -280,6 +322,7 @@ Content-Type: application/json
 # trámites distintos y conviven: por eso la clave es mascota + motivo, y no
 # solo la mascota.
 POST {{base}}/api/certificados
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -303,6 +346,7 @@ Content-Type: application/json
 # `npm test` sin base y sin servidor.
 # ────────────────────────────────────────────────────────────────────────
 POST {{base}}/api/certificados
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -316,6 +360,7 @@ Content-Type: application/json
 # EDAD de esa mascota". A un mes no le corresponde ninguna, así que está al
 # día. Si la regla lo tratara como "pendiente", ningún cachorro viajaría.
 POST {{base}}/api/certificados
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -329,6 +374,7 @@ Content-Type: application/json
 # porque un 403 confirmaría que existe. Para este dueño, la mascota del
 # vecino no existe.
 POST {{base}}/api/certificados
+Cookie: {{sesionDuena}}
 Content-Type: application/json
 
 {
@@ -353,6 +399,7 @@ Content-Type: application/json
 # ────────────────────────────────────────────────────────────────────────
 # @name emitir
 POST {{base}}/api/certificados/{{solicitar.response.body.id}}/emision
+Cookie: {{sesionVeterinario}}
 
 
 ### emitirlo OTRA VEZ → 409
@@ -362,10 +409,12 @@ POST {{base}}/api/certificados/{{solicitar.response.body.id}}/emision
 # La verificación no está en un `if` del handler: está en el WHERE de la
 # consulta (`estado: "SOLICITADO"`). No hay forma de olvidársela.
 POST {{base}}/api/certificados/{{solicitar.response.body.id}}/emision
+Cookie: {{sesionVeterinario}}
 
 
 ### emitir uno que no existe → 404
 POST {{base}}/api/certificados/no-existe/emision
+Cookie: {{sesionVeterinario}}
 
 
 ### el detalle de un certificado → 200
@@ -374,6 +423,7 @@ POST {{base}}/api/certificados/no-existe/emision
 # lee el mismo certificado y muestra lo mínimo. Dos `select` separados a
 # propósito.
 GET {{base}}/api/certificados/{{solicitar.response.body.id}}
+Cookie: {{sesionDuena}}
 
 
 ###############################################################################
@@ -407,15 +457,78 @@ GET {{base}}/api/verificacion/hola
 
 
 ###############################################################################
-# LO QUE TODAVÍA NO EXISTE
+# 5. LA SESIÓN — 401, 403 y 404 (clase 6)
 #
-# Comentadas porque los endpoints llegan en las próximas clases. Sirven como
-# machete de la sintaxis y como recordatorio de lo que falta.
+# Las tres preguntas del handler, una request por cada una. Son las primeras
+# que se piden en la defensa del Parcial I.
 ###############################################################################
 
-### anular un certificado — solo el veterinario que lo emitió (clase 6)
-# Es la última fila del contrato que sigue sin código, y no es un olvido: su
-# regla de negocio es QUIÉN la ejecuta, así que no se puede escribir sin
-# sesión. Por eso queda acá y no como un TODO adentro de un handler que no
-# existe.
-# POST {{base}}/api/certificados/{{solicitar.response.body.id}}/anulacion
+### sin cookie de sesión → 401 "No autenticado"
+# La request más importante del archivo: es la que prueba que la API no está
+# abierta. Si esto devuelve 200 con una lista de mascotas, hay una filtración.
+GET {{base}}/api/mascotas
+
+### sin cookie, contra una operación de veterinario → 401 y NO 403
+# Primero quién, después qué: sin sesión no se llega a evaluar el rol.
+POST {{base}}/api/certificados/cualquier-id/emision
+
+### con la cookie del DUEÑO, emitiendo un certificado → 403
+# Acá sí hay sesión, así que el problema ya no es quién sos sino qué podés.
+# 403 y no 404 a propósito: el problema es el ROL, no la pertenencia.
+# El certificado existe y quien pide sabe que existe.
+POST {{base}}/api/certificados/{{solicitar.response.body.id}}/emision
+Cookie: {{sesionDuena}}
+
+### con la cookie del DUEÑO, registrando una aplicación → 403
+# La vacuna la aplica un profesional, aunque la mascota sea suya.
+POST {{base}}/api/mascotas/laika/aplicaciones
+Content-Type: application/json
+Cookie: {{sesionDuena}}
+
+{
+  "vacunaId": "antirrabica-perro",
+  "fecha": "2026-09-15"
+}
+
+### con la cookie de un dueño, pidiendo la mascota de OTRO → 404
+# La prueba del `where`: no es que se rechace después, es que para este dueño
+# la mascota del vecino no existe. Reemplazar el id por uno de otra cuenta.
+GET {{base}}/api/mascotas/id-de-una-mascota-ajena
+Cookie: {{sesionDuena}}
+
+
+###############################################################################
+# 6. LA ANULACIÓN — la operación que necesitaba sesión
+#
+# Última fila del contrato en tener código. Su regla de negocio no es un
+# cálculo: es QUIÉN la ejecuta.
+###############################################################################
+
+### anular un certificado emitido — con la cookie del veterinario que lo emitió → 200
+POST {{base}}/api/certificados/{{emitir.response.body.id}}/anulacion
+Cookie: {{sesionVeterinario}}
+
+### anularlo de nuevo → 409 "El certificado no está emitido"
+# El WHERE del updateMany pide estado EMITIDO: el segundo intento no matchea.
+POST {{base}}/api/certificados/{{emitir.response.body.id}}/anulacion
+Cookie: {{sesionVeterinario}}
+
+### anular con la cookie de OTRO veterinario → 409, no 403
+# Tiene el rol correcto, así que `requerirUsuario("VETERINARIO")` lo deja
+# pasar. Lo frena la consulta, porque el `emisorId` va en el WHERE.
+#
+# Y la respuesta es la misma que la de arriba a propósito: quien no lo emitió
+# no tiene por qué enterarse de en qué estado está el certificado de otro.
+POST {{base}}/api/certificados/{{emitir.response.body.id}}/anulacion
+Cookie: {{sesionVeterinario}}
+
+
+###############################################################################
+# 7. LO QUE SIGUE SIENDO PÚBLICO
+###############################################################################
+
+### verificar un certificado SIN cookie → 200
+# No es un olvido: la aerolínea no tiene cuenta. Es la única operación del
+# contrato sin `requerirUsuario`, y su consulta devuelve un `select` más chico
+# —sin el dueño, sin su mail, sin el id interno—.
+GET {{base}}/api/verificacion/{{emitir.response.body.codigoVerificacion}}
