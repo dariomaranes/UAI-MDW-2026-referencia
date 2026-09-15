@@ -8,6 +8,7 @@
  * Por qué: si mañana cambia la consulta, se cambia en un solo lugar; y cuando
  * algo anda lento, se sabe exactamente dónde mirar.
  */
+import type { Rol } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import type {
   ActualizarMascotaInput,
@@ -45,11 +46,48 @@ export async function listarMascotasDeDueno(
 }
 
 /**
+ * Las mascotas que este veterinario atendió: SUS PACIENTES.
+ *
+ * Es la contraparte de `listarMascotasDeDueno` para el otro rol. Un
+ * veterinario no tiene mascotas propias, así que "las mías" para él significa
+ * otra cosa: aquellas a las que alguna vez le aplicó una vacuna.
+ *
+ * El filtro atraviesa la relación con `some`: mascotas que tengan AL MENOS UNA
+ * aplicación hecha por este veterinario. Sigue siendo una sola consulta, y
+ * sigue llevando el id de la sesión adentro del WHERE, que es la regla de la
+ * clase 6.
+ *
+ * Fijate que este vínculo no estaba modelado en ningún lado: no hay una
+ * columna "veterinarioId" en Mascota ni una tabla de pacientes. Sale de los
+ * hechos que ya se registraron, que es justamente lo que permite un modelo
+ * bien relacionado.
+ */
+export async function listarMascotasAtendidasPor(
+  veterinarioId: string,
+  limite: number = LIMITE_POR_DEFECTO,
+) {
+  return prisma.mascota.findMany({
+    where: { aplicaciones: { some: { veterinarioId } } },
+    take: limite,
+    orderBy: { creadaEn: "desc" },
+    select: {
+      id: true,
+      nombre: true,
+      especie: true,
+      fechaNacimiento: true,
+      // Al veterinario sí le corresponde saber de quién es cada paciente:
+      // lo necesita para identificar al animal en la consulta.
+      dueno: { select: { id: true, nombre: true } },
+    },
+  });
+}
+
+/**
  * Todas las mascotas del sistema, con su dueño.
  *
- * Vista de administración: NO la usen para las pantallas del dueño, que
- * tienen que filtrar. En la clase 6, cuando haya sesión y roles, esta consulta
- * queda restringida al rol ADMIN.
+ * NO la usen para las pantallas del dueño ni para las del veterinario: cada
+ * uno tiene la suya, filtrada por el id de la sesión. Esta no filtra nada, así
+ * que solo puede vivir detrás de un rol que tenga derecho a ver todo.
  *
  * El `select` anidado del dueño resuelve la relación en UNA consulta. Traer
  * las mascotas y después pedir el dueño de cada una en un bucle serían N+1
@@ -67,6 +105,29 @@ export async function listarMascotas(limite: number = LIMITE_POR_DEFECTO) {
       dueno: { select: { id: true, nombre: true } },
     },
   });
+}
+
+/**
+ * La mascota tal como la puede ver este usuario, según su rol.
+ *
+ * Es la única consulta del proyecto que a veces NO lleva el id de la sesión
+ * en el WHERE, y la excepción es deliberada: un veterinario atiende animales
+ * de cualquier dueño, así que filtrar por `duenoId` lo dejaría sin ver a
+ * ninguno de sus pacientes. El permiso ya se verificó antes con
+ * `requerirUsuario`; lo que decide acá el rol es QUÉ CONSULTA se hace, no si
+ * se chequea después.
+ *
+ * Para el dueño, en cambio, sigue valiendo la regla de siempre: la mascota
+ * del vecino no existe.
+ */
+export async function obtenerMascotaVisiblePara(
+  id: string,
+  usuarioId: string,
+  rol: Rol,
+) {
+  if (rol === "DUENO") return obtenerMascotaDeDueno(id, usuarioId);
+
+  return obtenerMascota(id);
 }
 
 export async function obtenerMascota(id: string) {

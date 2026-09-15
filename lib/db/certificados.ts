@@ -5,6 +5,7 @@
  * son actos que alguien realiza, con reglas y permisos propios. Por eso cada
  * uno tiene su función y no son un `update` genérico del campo `estado`.
  */
+import type { Rol } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import type {
   MotivoCertificado,
@@ -55,6 +56,30 @@ export async function listarCertificadosDeDueno(
 export async function obtenerCertificado(id: string) {
   return prisma.certificado.findUnique({
     where: { id },
+    select: CAMPOS_CERTIFICADO,
+  });
+}
+
+/**
+ * El certificado tal como lo puede ver este usuario, según su rol.
+ *
+ * Para el dueño, la pertenencia va en el WHERE y atraviesa la relación: el
+ * certificado de la mascota del vecino no existe para él, y el 404 sale solo
+ * sin ningún `if` que comparar después. Para el veterinario no hay filtro,
+ * porque es quien los emite y los anula.
+ *
+ * Es el mismo patrón que `obtenerMascotaVisiblePara`: el rol elige QUÉ
+ * consulta se hace, no si se chequea al final.
+ */
+export async function obtenerCertificadoVisiblePara(
+  id: string,
+  usuarioId: string,
+  rol: Rol,
+) {
+  if (rol !== "DUENO") return obtenerCertificado(id);
+
+  return prisma.certificado.findFirst({
+    where: { id, mascota: { duenoId: usuarioId } },
     select: CAMPOS_CERTIFICADO,
   });
 }
