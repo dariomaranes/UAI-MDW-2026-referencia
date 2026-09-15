@@ -14,19 +14,19 @@ import {
   solicitudPendiente,
 } from "@/lib/db/certificados";
 import { obtenerMascotaDeDueno } from "@/lib/db/mascotas";
+import { requerirUsuario } from "@/lib/auth";
+import { responderError } from "@/lib/errores";
 import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
 import { vacunasFaltantes } from "@/lib/estado-sanitario";
 
 export async function GET() {
   try {
-    // TODO (clase 6): el dueño sale de la sesión y 401 si no hay.
-    const duenoId = "duena-de-ejemplo";
+    const usuario = await requerirUsuario();
 
-    const certificados = await listarCertificadosDeDueno(duenoId);
+    const certificados = await listarCertificadosDeDueno(usuario.id);
     return NextResponse.json(certificados);
   } catch (error) {
-    console.error("GET /api/certificados", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("GET /api/certificados", error);
   }
 }
 
@@ -44,14 +44,13 @@ export async function POST(request: Request) {
     }
 
     // 2. AUTORIZAR.
-    // TODO (clase 6): el dueño sale de la sesión y 401 si no hay.
-    const duenoId = "duena-de-ejemplo";
+    const usuario = await requerirUsuario();
 
     // La mascota se busca ANTES de la regla porque la regla la necesita: sin
     // su especie y su fecha de nacimiento no hay plan de vacunación que
     // evaluar. Y de paso resuelve el 404 — el `duenoId` va en el WHERE, así
     // que la mascota del vecino no existe para este dueño.
-    const mascota = await obtenerMascotaDeDueno(resultado.data.mascotaId, duenoId);
+    const mascota = await obtenerMascotaDeDueno(resultado.data.mascotaId, usuario.id);
 
     if (!mascota) {
       return NextResponse.json({ error: "Mascota no encontrada" }, { status: 404 });
@@ -114,7 +113,7 @@ export async function POST(request: Request) {
     }
 
     // 4. DELEGAR.
-    const certificado = await solicitarCertificado(resultado.data, duenoId);
+    const certificado = await solicitarCertificado(resultado.data, usuario.id);
 
     if (!certificado) {
       return NextResponse.json({ error: "Mascota no encontrada" }, { status: 404 });
@@ -123,13 +122,10 @@ export async function POST(request: Request) {
     // 5. RESPONDER.
     return NextResponse.json(certificado, { status: 201 });
   } catch (error) {
-    // Acá solo llega lo que NO se previó: la base caída, un bug. Los errores
-    // esperados —400, 404, 409— salieron por `return` mucho antes.
-    //
-    // El detalle va al log, que es de ustedes. La respuesta, que la lee un
-    // desconocido, no cuenta nada: el mensaje de una excepción de Prisma
-    // revela nombres de tablas y a veces el SQL.
-    console.error("POST /api/certificados", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    // Acá llega lo que NO se previó —la base caída, un bug— y, desde la clase
+    // 6, también el 401 y el 403 que lanza `requerirUsuario`. Los distingue
+    // `responderError`; los errores esperados —400, 404, 409— siguen saliendo
+    // por `return` mucho antes.
+    return responderError("POST /api/certificados", error);
   }
 }

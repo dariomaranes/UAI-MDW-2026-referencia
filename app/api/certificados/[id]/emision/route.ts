@@ -31,6 +31,8 @@ import {
   generarCodigoVerificacion,
 } from "@/lib/certificados";
 import { emitirCertificado, obtenerCertificado } from "@/lib/db/certificados";
+import { requerirUsuario } from "@/lib/auth";
+import { responderError } from "@/lib/errores";
 import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
 import {
   primerVencimientoObligatorio,
@@ -47,15 +49,15 @@ export async function POST(_request: Request, { params }: Contexto) {
     //    URL y en la sesión. No hay nada que parsear, y eso es una buena señal
     //    — cuanto menos decide el cliente, menos hay que desconfiar.
 
-    // 2. AUTORIZAR.
-    // TODO (clase 6): el emisor sale de la sesión, 401 si no hay sesión y 403
-    // si el rol no es VETERINARIO. Acá el 403 SÍ corresponde —a diferencia del
-    // 404 de las mascotas ajenas— porque el problema es el rol, no la
-    // pertenencia: el certificado existe y quien pide sabe que existe.
-    // El criterio de aceptación de la H5 lo pide explícitamente: "si quien
-    // intenta emitirlo no es veterinario, el sistema responde 403 aunque la
-    // llamada no venga de la interfaz".
-    const emisorId = "veterinario-de-ejemplo";
+    // 2. AUTORIZAR. Acá el 403 SÍ corresponde —a diferencia del 404 de las
+    //    mascotas ajenas— porque el problema es el rol, no la pertenencia: el
+    //    certificado existe y quien pide sabe que existe.
+    //
+    //    El criterio de aceptación de la H5 lo pide explícitamente: "si quien
+    //    intenta emitirlo no es veterinario, el sistema responde 403 aunque la
+    //    llamada no venga de la interfaz". Esa última frase es la clase 6
+    //    entera: la verificación va en el servidor, no en la pantalla.
+    const veterinario = await requerirUsuario("VETERINARIO");
 
     const certificado = await obtenerCertificado(id);
 
@@ -119,7 +121,10 @@ export async function POST(_request: Request, { params }: Contexto) {
 
     const emitido = await emitirCertificado(
       id,
-      emisorId,
+      // El emisor baja de la sesión. Es lo que hace cumplir la regla de la
+      // spec "solo el veterinario que lo emitió puede anularlo": si este dato
+      // viniera del body, esa regla sería decorativa.
+      veterinario.id,
       generarCodigoVerificacion(),
       calcularVencimiento(hoy, vencimientoDeVacunas),
     );
@@ -137,7 +142,6 @@ export async function POST(_request: Request, { params }: Contexto) {
     // 5. RESPONDER. 201: se creó la emisión, que es el recurso de esta ruta.
     return NextResponse.json(emitido, { status: 201 });
   } catch (error) {
-    console.error("POST /api/certificados/:id/emision", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("POST /api/certificados/:id/emision", error);
   }
 }

@@ -20,7 +20,9 @@
  * parámetro. Esa es la razón por la que la regla se puede testear.
  */
 import { NextResponse } from "next/server";
-import { obtenerMascotaDeDueno } from "@/lib/db/mascotas";
+import { obtenerMascotaVisiblePara } from "@/lib/db/mascotas";
+import { requerirUsuario } from "@/lib/auth";
+import { responderError } from "@/lib/errores";
 import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
 import { estadoSanitario } from "@/lib/estado-sanitario";
 
@@ -30,12 +32,13 @@ export async function GET(_request: Request, { params }: Contexto) {
   try {
     const { id } = await params;
 
-    // TODO (clase 6): el dueño sale de la sesión y 401 si no hay. Además, un
-    // VETERINARIO puede ver el estado sanitario de cualquier mascota que
-    // atiende: son dos caminos distintos hacia la misma respuesta.
-    const duenoId = "duena-de-ejemplo";
+    // Dos roles llegan a esta respuesta por caminos distintos: el dueño solo
+    // a sus mascotas, el veterinario a la de cualquiera que atienda. El rol
+    // elige QUÉ CONSULTA se hace —ver `obtenerMascotaVisiblePara`—, no un
+    // `if` que compare ids después de haber traído el dato.
+    const usuario = await requerirUsuario();
 
-    const mascota = await obtenerMascotaDeDueno(id, duenoId);
+    const mascota = await obtenerMascotaVisiblePara(id, usuario.id, usuario.rol);
 
     if (!mascota) {
       return NextResponse.json({ error: "No encontrada" }, { status: 404 });
@@ -56,7 +59,6 @@ export async function GET(_request: Request, { params }: Contexto) {
       ),
     });
   } catch (error) {
-    console.error("GET /api/mascotas/:id/estado-sanitario", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("GET /api/mascotas/:id/estado-sanitario", error);
   }
 }

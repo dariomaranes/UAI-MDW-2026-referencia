@@ -14,6 +14,8 @@ import {
   mascotaTieneHistorial,
   obtenerMascotaDeDueno,
 } from "@/lib/db/mascotas";
+import { requerirUsuario } from "@/lib/auth";
+import { responderError } from "@/lib/errores";
 
 /**
  * En Next 15 `params` es una PROMESA y hay que esperarla.
@@ -28,20 +30,19 @@ export async function GET(_request: Request, { params }: Contexto) {
   try {
     const { id } = await params;
 
-    // TODO (clase 6): el dueño sale de la sesión y 401 si no hay.
-    const duenoId = "duena-de-ejemplo";
+    const usuario = await requerirUsuario();
 
-    const mascota = await obtenerMascotaDeDueno(id, duenoId);
+    const mascota = await obtenerMascotaDeDueno(id, usuario.id);
 
-    // Un id que no existe no es un error del servidor: es un 404.
+    // Un id que no existe no es un error del servidor: es un 404. Y el de una
+    // mascota ajena tampoco: el `duenoId` del WHERE hace que no exista.
     if (!mascota) {
       return NextResponse.json({ error: "No encontrada" }, { status: 404 });
     }
 
     return NextResponse.json(mascota);
   } catch (error) {
-    console.error("GET /api/mascotas/:id", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("GET /api/mascotas/:id", error);
   }
 }
 
@@ -62,12 +63,11 @@ export async function PATCH(request: Request, { params }: Contexto) {
     }
 
     // 2. AUTORIZAR.
-    // TODO (clase 6): el dueño sale de la sesión y 401 si no hay.
-    const duenoId = "duena-de-ejemplo";
+    const usuario = await requerirUsuario();
 
     // 3. DELEGAR. El dueño viaja hasta el WHERE de la consulta: una mascota
     //    ajena no matchea y vuelve null.
-    const mascota = await actualizarMascota(id, resultado.data, duenoId);
+    const mascota = await actualizarMascota(id, resultado.data, usuario.id);
 
     if (!mascota) {
       return NextResponse.json({ error: "No encontrada" }, { status: 404 });
@@ -76,8 +76,7 @@ export async function PATCH(request: Request, { params }: Contexto) {
     // 4. RESPONDER. 200 y no 201: no se creó nada nuevo.
     return NextResponse.json(mascota);
   } catch (error) {
-    console.error("PATCH /api/mascotas/:id", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("PATCH /api/mascotas/:id", error);
   }
 }
 
@@ -85,10 +84,9 @@ export async function DELETE(_request: Request, { params }: Contexto) {
   try {
     const { id } = await params;
 
-    // TODO (clase 6): el dueño sale de la sesión y 401 si no hay.
-    const duenoId = "duena-de-ejemplo";
+    const usuario = await requerirUsuario();
 
-    const mascota = await obtenerMascotaDeDueno(id, duenoId);
+    const mascota = await obtenerMascotaDeDueno(id, usuario.id);
 
     if (!mascota) {
       return NextResponse.json({ error: "No encontrada" }, { status: 404 });
@@ -106,12 +104,11 @@ export async function DELETE(_request: Request, { params }: Contexto) {
       );
     }
 
-    await borrarMascota(id, duenoId);
+    await borrarMascota(id, usuario.id);
 
     // 204 = salió bien y no hay nada que devolver. Un DELETE no devuelve body.
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("DELETE /api/mascotas/:id", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("DELETE /api/mascotas/:id", error);
   }
 }

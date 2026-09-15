@@ -13,7 +13,9 @@
  * agregar un campo acá no lo publique allá.
  */
 import { NextResponse } from "next/server";
-import { obtenerCertificado } from "@/lib/db/certificados";
+import { obtenerCertificadoVisiblePara } from "@/lib/db/certificados";
+import { requerirUsuario } from "@/lib/auth";
+import { responderError } from "@/lib/errores";
 
 type Contexto = { params: Promise<{ id: string }> };
 
@@ -21,10 +23,15 @@ export async function GET(_request: Request, { params }: Contexto) {
   try {
     const { id } = await params;
 
-    // TODO (clase 6): el dueño sale de la sesión y 401 si no hay. Y el
-    // certificado tiene que ser de una mascota suya —o quien pregunta tiene
-    // que ser VETERINARIO—, o esto responde 404 como las mascotas ajenas.
-    const certificado = await obtenerCertificado(id);
+    const usuario = await requerirUsuario();
+
+    // La pertenencia viaja adentro de la consulta: para un dueño, el
+    // certificado de la mascota del vecino no existe, y el 404 sale solo.
+    const certificado = await obtenerCertificadoVisiblePara(
+      id,
+      usuario.id,
+      usuario.rol,
+    );
 
     if (!certificado) {
       return NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -32,7 +39,6 @@ export async function GET(_request: Request, { params }: Contexto) {
 
     return NextResponse.json(certificado);
   } catch (error) {
-    console.error("GET /api/certificados/:id", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("GET /api/certificados/:id", error);
   }
 }

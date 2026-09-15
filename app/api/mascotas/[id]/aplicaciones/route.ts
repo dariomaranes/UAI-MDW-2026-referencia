@@ -21,7 +21,9 @@ import {
   listarAplicacionesDeMascota,
   registrarAplicacion,
 } from "@/lib/db/aplicaciones";
-import { obtenerMascotaDeDueno } from "@/lib/db/mascotas";
+import { obtenerMascota, obtenerMascotaVisiblePara } from "@/lib/db/mascotas";
+import { requerirUsuario } from "@/lib/auth";
+import { responderError } from "@/lib/errores";
 import { obtenerVacuna } from "@/lib/db/vacunas";
 import {
   alcanzaLaEdadMinima,
@@ -34,11 +36,11 @@ export async function GET(_request: Request, { params }: Contexto) {
   try {
     const { id } = await params;
 
-    // TODO (clase 6): el dueño sale de la sesión, 401 si no hay, y el
-    // veterinario también puede leer este historial.
-    const duenoId = "duena-de-ejemplo";
+    // El historial lo leen los dos roles: el dueño el de sus mascotas, el
+    // veterinario el de cualquiera. Lo dice la columna "Rol" de `docs/api.md`.
+    const usuario = await requerirUsuario();
 
-    const mascota = await obtenerMascotaDeDueno(id, duenoId);
+    const mascota = await obtenerMascotaVisiblePara(id, usuario.id, usuario.rol);
 
     if (!mascota) {
       return NextResponse.json({ error: "No encontrada" }, { status: 404 });
@@ -46,8 +48,7 @@ export async function GET(_request: Request, { params }: Contexto) {
 
     return NextResponse.json(await listarAplicacionesDeMascota(mascota.id));
   } catch (error) {
-    console.error("GET /api/mascotas/:id/aplicaciones", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("GET /api/mascotas/:id/aplicaciones", error);
   }
 }
 
@@ -74,17 +75,19 @@ export async function POST(request: Request, { params }: Contexto) {
 
     const datos = resultado.data;
 
-    // 2. AUTORIZAR.
-    // TODO (clase 6): el veterinario sale de la sesión, 401 si no hay sesión
-    // y 403 si el rol no es VETERINARIO. Acá el 403 corresponde y el 404 no:
-    // el problema es el rol, no la pertenencia. Un dueño no registra
-    // aplicaciones aunque la mascota sea suya — la vacuna la aplica un
-    // profesional.
-    const veterinarioId = "veterinario-de-ejemplo";
+    // 2. AUTORIZAR. Acá el 403 corresponde y el 404 no: el problema es el
+    //    ROL, no la pertenencia. Un dueño no registra aplicaciones aunque la
+    //    mascota sea suya — la vacuna la aplica un profesional, y el
+    //    certificado que sale de ahí vale porque lo firmó alguien habilitado.
+    //
+    //    `requerirUsuario("VETERINARIO")` hace las dos preguntas de una: si
+    //    no hay sesión lanza NoAutenticado (401) y si el rol no alcanza,
+    //    NoAutorizado (403).
+    const veterinario = await requerirUsuario("VETERINARIO");
 
-    // TODO (clase 6): mientras no haya sesión, la mascota se busca por dueño
-    // fijo. Con sesión, un veterinario llega a cualquier mascota que atiende.
-    const mascota = await obtenerMascotaDeDueno(datos.mascotaId, "duena-de-ejemplo");
+    // Un veterinario atiende mascotas de cualquier dueño, así que esta
+    // consulta no lleva `duenoId`: el permiso ya se verificó arriba.
+    const mascota = await obtenerMascota(datos.mascotaId);
 
     if (!mascota) {
       return NextResponse.json({ error: "Mascota no encontrada" }, { status: 404 });
@@ -139,14 +142,15 @@ export async function POST(request: Request, { params }: Contexto) {
     //    vacuna: es un dato derivado y por eso salió del body en esta clase.
     const aplicacion = await registrarAplicacion(
       datos,
-      veterinarioId,
+      // Quién aplicó la vacuna baja de la sesión, nunca del body. Es un
+      // registro sanitario: dice quién se hizo responsable.
+      veterinario.id,
       calcularProximaDosis(datos.fecha, vacuna.intervaloRefuerzoDias),
     );
 
     // 5. RESPONDER.
     return NextResponse.json(aplicacion, { status: 201 });
   } catch (error) {
-    console.error("POST /api/mascotas/:id/aplicaciones", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return responderError("POST /api/mascotas/:id/aplicaciones", error);
   }
 }
