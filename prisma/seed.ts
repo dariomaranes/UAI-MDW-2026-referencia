@@ -37,21 +37,20 @@ function haceMeses(meses: number): Date {
 
 async function main() {
   // --- Usuarios --------------------------------------------------------
-  // Los ids son FIJOS y legibles, no los cuid() que genera Prisma sola.
+  // Hasta la clase 5 estos dos usuarios tenían ids FIJOS y legibles, porque
+  // los handlers los llevaban escritos a mano en su `TODO (clase 6)`. Con la
+  // sesión andando ese andamio se cae: el id sale del usuario logueado, y
+  // acá vuelven a ser cuid() como el resto de las filas.
   //
-  // Por qué: hasta la clase 6 no hay sesión, así que los endpoints tienen
-  // el dueño puesto a mano en su `TODO (clase 6)`. Si el seed generara un
-  // id aleatorio en cada corrida, ese TODO apuntaría a un usuario que no
-  // existe y la API entera respondería 404 y 500 sin que nada esté mal.
-  //
-  // Estos dos ids son los que aparecen en los handlers de `app/api/`. Al
-  // llegar la sesión, el id sale del usuario logueado y estos vuelven a ser
-  // cuid() como el resto.
+  // Se identifican por EMAIL, que es lo que hace posible entrar con ellos:
+  // `lib/auth.ts` busca por email al crear la sesión, así que si alguno de
+  // estos coincide con la cuenta de Google con la que se inicia sesión, se
+  // entra directamente con ese rol. Es la forma más rápida de probar el
+  // camino del veterinario sin construir una pantalla de administración.
   const duena = await prisma.usuario.upsert({
     where: { email: "ana@ejemplo.com" },
     update: {},
     create: {
-      id: "duena-de-ejemplo",
       email: "ana@ejemplo.com",
       nombre: "Ana Duarte",
       rol: Rol.DUENO,
@@ -62,14 +61,16 @@ async function main() {
     where: { email: "bruno@ejemplo.com" },
     update: {},
     create: {
-      id: "veterinario-de-ejemplo",
       email: "bruno@ejemplo.com",
       nombre: "Bruno Sosa",
       rol: Rol.VETERINARIO,
     },
   });
 
-  // El admin existe porque un veterinario no puede auto-registrarse como tal.
+  // El admin existe porque un veterinario no puede auto-registrarse como tal:
+  // el registro público crea SIEMPRE el rol de menor privilegio (ver el
+  // `upsert` del callback `jwt` en `lib/auth.ts`), y el rol de veterinario lo
+  // asigna alguien con más privilegio. Hoy eso se hace a mano en la base.
   await prisma.usuario.upsert({
     where: { email: "admin@ejemplo.com" },
     update: {},
