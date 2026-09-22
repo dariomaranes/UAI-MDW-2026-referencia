@@ -219,16 +219,14 @@ Esta lista es **igual para todos los proyectos**: no hay que adaptarla, hay que 
 
 ## 8. Integración externa
 
-**Cuál:** almacenamiento de archivos (para el PDF del certificado) y envío de mail.
+**Cuál:** almacenamiento de archivos, para el PDF del certificado.
 
-**Para qué:**
-- El **PDF** del certificado emitido se guarda y se sirve desde un storage, no desde la base.
-- Se manda un **mail al dueño** cuando una vacuna obligatoria está por vencer.
+**Para qué:** el **PDF** del certificado emitido se guarda y se sirve desde un storage, no desde la
+base. La base guarda datos, no megabytes.
 
-**Qué pasa si se cae:**
-- Si falla el storage, el certificado **igual se emite y queda verificable online**; el PDF se
-  regenera después. Lo que vale es el registro, no el archivo.
-- Si falla el mail, el recordatorio se reintenta; el estado en el sistema no depende de eso.
+**Qué pasa si se cae:** el certificado **igual se emite y queda verificable online**; el PDF se
+regenera después. Lo que vale es el registro, no el archivo. Es un servicio **accesorio**: su falla
+no puede deshacer la emisión.
 
 ## 9. Fuera de alcance
 
@@ -242,5 +240,8 @@ Lo que decidimos **no** hacer, para no volver a discutirlo en la clase 12.
 - **Una persona con dos roles a la vez.** Cada usuario tiene un solo rol, así que un veterinario
   que además tenga mascotas propias necesitaría una segunda cuenta. Es una simplificación
   consciente: soportar varios roles por persona complicaría todos los permisos del sistema.
+- **Avisos por mail** cuando una vacuna está por vencer. No alcanza con integrar un proveedor de
+  correo: hace falta además un proceso que recorra las aplicaciones periódicamente y decida a quién
+  avisar, y esa pieza —una tarea programada— el sistema no la tiene. Se recorta a propósito.
 - **App nativa** y notificaciones push. Es una web, y tiene que andar bien en el celular.
 - **Multi-idioma.**
