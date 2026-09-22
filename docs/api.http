@@ -39,23 +39,29 @@
 # La cookie de sesión (clase 6)
 # ---------------------------------------------------------------------------
 # Desde la clase 6 la API pide sesión, así que casi todas las requests de este
-# archivo necesitan la cookie que Auth.js dejó en el navegador.
+# archivo mandan la cookie que Auth.js deja en el navegador.
 #
-# Cómo se consigue:
-#   1. Iniciar sesión en {{base}} con el botón de Google.
-#   2. Abrir las herramientas de desarrollo → Application → Cookies.
-#   3. Copiar el VALOR de `authjs.session-token` y pegarlo abajo.
-#      En producción la cookie se llama `__Secure-authjs.session-token`.
+# LA COOKIE NO SE ESCRIBE ACÁ. Es una sesión viva: quien la tenga entra al
+# sistema como ustedes. Este archivo se sube al repositorio, así que los
+# valores se leen de `docs/.env`, que está en el .gitignore:
 #
-# Es un secreto: no se commitea con un valor real. El archivo se sube con las
-# líneas vacías, igual que `.env.example`.
+#   1. Copiar `docs/.env.example` a `docs/.env`.
+#   2. Completar SESION_DUENA y SESION_VETERINARIO siguiendo las instrucciones
+#      de ese archivo. Va solo el valor: el nombre de la cookie lo pone la
+#      línea de abajo.
 #
-# Para probar el 403 hace falta una segunda cookie, la de una cuenta con el
+# `{{$dotenv ...}}` es de la extensión REST Client, y lee el `.env` que está en
+# la MISMA carpeta que este archivo. Por eso es `docs/.env` y no el de la raíz.
+#
+# En producción la cookie se llama `__Secure-authjs.session-token`: para
+# probar contra Vercel hay que cambiar el nombre en estas dos líneas.
+#
+# Para probar el 403 hace falta la segunda cookie, la de una cuenta con el
 # otro rol. La forma más rápida de tener un veterinario es que el mail
 # sembrado en `prisma/seed.ts` sea el de la cuenta con la que se inicia sesión.
 
-@sesionDuena = authjs.session-token=
-@sesionVeterinario = authjs.session-token=
+@sesionDuena = authjs.session-token={{$dotenv SESION_DUENA}}
+@sesionVeterinario = authjs.session-token={{$dotenv SESION_VETERINARIO}}
 
 
 ###############################################################################
