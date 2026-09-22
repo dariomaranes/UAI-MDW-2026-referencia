@@ -265,5 +265,22 @@ clase 4, esperando el segundo parámetro real.
 
 **El contrato está completo: todas las filas tienen código.**
 
+### El PDF del certificado (clase 7)
+
+`POST /api/certificados/:id/emision` devuelve, además, **`urlPdf`**: la dirección del PDF del
+certificado en el storage. Es el primer campo del contrato que depende de un servicio externo, y
+por eso tiene una regla que ningún otro campo tiene:
+
+| `urlPdf` | Qué significa | Status |
+|---|---|---|
+| Una URL | El PDF se generó y se subió | `201` |
+| `null` | El storage no respondió, o no está configurado | **`201` igual** |
+
+**El `null` no es un error y no cambia el status.** La emisión ocurrió: el certificado tiene su
+código y es verificable online, que es lo que la spec define como el certificado. El PDF es un
+servicio **accesorio** —sección 8 de `spec.md`— y su falla no puede deshacer la operación
+principal. La pantalla lo muestra como "en preparación".
+
+
 Las operaciones que todavía no existen están escritas y **comentadas** en `docs/api.http`, así
 que se puede ver la sintaxis antes de que el endpoint responda.

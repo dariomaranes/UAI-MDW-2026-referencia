@@ -30,7 +30,13 @@ import {
   calcularVencimiento,
   generarCodigoVerificacion,
 } from "@/lib/certificados";
-import { emitirCertificado, obtenerCertificado } from "@/lib/db/certificados";
+import {
+  emitirCertificado,
+  guardarUrlPdf,
+  obtenerCertificado,
+} from "@/lib/db/certificados";
+import { generarPdfCertificado } from "@/lib/certificados-pdf";
+import { subirPdf } from "@/lib/servicios/storage";
 import { requerirUsuario } from "@/lib/auth";
 import { responderError } from "@/lib/errores";
 import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
@@ -41,7 +47,18 @@ import {
 
 type Contexto = { params: Promise<{ id: string }> };
 
-export async function POST(_request: Request, { params }: Contexto) {
+/**
+ * La dirección donde un tercero verifica este certificado, impresa en el PDF.
+ *
+ * Sale del request y no de una constante porque el mismo código corre en
+ * localhost y en producción: hardcodearla haría que los PDF emitidos en
+ * desarrollo apunten al sistema de verdad, o al revés.
+ */
+function urlDeVerificacion(request: Request): string {
+  return new URL("/api/verificacion", request.url).toString();
+}
+
+export async function POST(request: Request, { params }: Contexto) {
   try {
     const { id } = await params;
 
@@ -139,8 +156,33 @@ export async function POST(_request: Request, { params }: Contexto) {
       );
     }
 
-    // 5. RESPONDER. 201: se creó la emisión, que es el recurso de esta ruta.
-    return NextResponse.json(emitido, { status: 201 });
+    // ---------------------------------------------------------------------
+    // A PARTIR DE ACÁ EL CERTIFICADO YA ESTÁ EMITIDO.
+    //
+    // Es la línea más importante de este archivo, y es una línea imaginaria:
+    // separa la OPERACIÓN de lo que viene después. Nada de lo que sigue puede
+    // deshacer la emisión, y por eso nada de lo que sigue usa `throw`.
+    //
+    // El PDF es un servicio ACCESORIO: la spec lo decidió en la clase 2 —"si
+    // falla el storage, el certificado igual se emite y queda verificable
+    // online; lo que vale es el registro, no el archivo"—. Ponerlo antes de
+    // emitir, o dejar que su falla rompa el request, sería contradecir esa
+    // decisión desde el código.
+    // ---------------------------------------------------------------------
+    const pdf = await generarPdfCertificado(emitido, urlDeVerificacion(request));
+
+    // `subirPdf` devuelve null si el storage no respondió. No hay rama de
+    // error: si no hay URL, no se guarda nada y listo.
+    const urlPdf = await subirPdf(`${emitido.codigoVerificacion}.pdf`, pdf);
+
+    if (urlPdf) {
+      await guardarUrlPdf(emitido.id, urlPdf);
+    }
+
+    // 5. RESPONDER. 201 en los dos casos: con PDF o sin PDF, la emisión
+    //    ocurrió. `urlPdf` en null le dice a la pantalla que lo muestre como
+    //    "en preparación", no como un error.
+    return NextResponse.json({ ...emitido, urlPdf }, { status: 201 });
   } catch (error) {
     return responderError("POST /api/certificados/:id/emision", error);
   }

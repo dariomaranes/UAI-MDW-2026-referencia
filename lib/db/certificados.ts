@@ -29,6 +29,7 @@ const CAMPOS_CERTIFICADO = {
   emitidoEn: true,
   vencimiento: true,
   codigoVerificacion: true,
+  urlPdf: true,
   // La fecha de nacimiento viaja con el certificado desde la clase 5: la
   // regla que verifica las vacunas obligatorias la necesita para saber qué
   // le corresponde a esa mascota por edad. Sin ella, el handler tendría que
@@ -186,6 +187,22 @@ export async function anularCertificado(id: string, emisorId: string) {
   if (count === 0) return null;
 
   return obtenerCertificado(id);
+}
+
+/**
+ * Guarda dónde quedó el PDF, después de subirlo.
+ *
+ * Es un `update` suelto y no parte de `emitirCertificado` a propósito: cuando
+ * esto corre, el certificado YA ESTÁ EMITIDO. La emisión son cuatro cosas
+ * —verificar las vacunas, generar el código, congelar el vencimiento y
+ * registrar al emisor— y el PDF no es una de ellas: es una consecuencia.
+ *
+ * Por eso también puede no correr nunca y el sistema queda consistente: la
+ * columna `urlPdf` es opcional, y ese `?` del schema es la decisión de
+ * negocio de la spec hecha modelo.
+ */
+export async function guardarUrlPdf(id: string, urlPdf: string) {
+  return prisma.certificado.update({ where: { id }, data: { urlPdf } });
 }
 
 /**
