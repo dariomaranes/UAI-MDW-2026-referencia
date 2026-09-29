@@ -16,14 +16,20 @@
  * la hay, y dejarlo así sería el ejemplo perfecto de lo que la clase dice que
  * no se hace: una pantalla pública que muestra datos de todo el mundo.
  *
- * En la clase 9 se reemplaza por la portada real, con su diseño.
+ * En la clase 10 se reemplaza por la portada real, con su diseño.
+ *
+ * En la clase 8 el listado se delegó a `BuscadorMascotas`, que es de cliente.
+ * Fijate que esta página NO lleva `"use client"`: el `<input>` necesita estado,
+ * el resto no. La frontera se puso lo más abajo posible, en el único componente
+ * que la precisa.
  */
-import type { Especie } from "@prisma/client";
 import { obtenerUsuario, signIn, signOut } from "@/lib/auth";
 import {
   listarMascotasAtendidasPor,
   listarMascotasDeDueno,
 } from "@/lib/db/mascotas";
+import { BuscadorMascotas, type Fila } from "@/components/buscador-mascotas";
+import { NOMBRE_ESPECIE, NOMBRE_ROL } from "@/lib/etiquetas";
 
 // Esta página lee datos que cambian, así que se renderiza en cada request.
 // Sin esta línea, Next.js intentaría generarla una sola vez durante el build
@@ -38,14 +44,12 @@ const formatoFecha = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
  * su propio nombre— así que la página las normaliza a una sola forma antes de
  * pintar. Es un Data Transfer Object hecho a mano: la vista no debería tener
  * que saber de qué consulta vino cada fila.
+ *
+ * Desde la clase 8 el tipo `Fila` lo declara el componente que lo recibe, y la
+ * fecha y la especie viajan ya convertidas a texto. Traducir para la pantalla
+ * es trabajo del servidor: acá se hace una vez, en el cliente se haría en cada
+ * render y con la configuración regional de la máquina de quien mira.
  */
-type Fila = {
-  id: string;
-  nombre: string;
-  especie: Especie;
-  fechaNacimiento: Date;
-  dueno: string | null;
-};
 
 export default async function Home() {
   const usuario = await obtenerUsuario();
@@ -101,15 +105,15 @@ export default async function Home() {
       ? (await listarMascotasAtendidasPor(usuario.id)).map((m) => ({
           id: m.id,
           nombre: m.nombre,
-          especie: m.especie,
-          fechaNacimiento: m.fechaNacimiento,
+          especie: NOMBRE_ESPECIE[m.especie],
+          nacimiento: formatoFecha.format(m.fechaNacimiento),
           dueno: m.dueno.nombre,
         }))
       : (await listarMascotasDeDueno(usuario.id)).map((m) => ({
           id: m.id,
           nombre: m.nombre,
-          especie: m.especie,
-          fechaNacimiento: m.fechaNacimiento,
+          especie: NOMBRE_ESPECIE[m.especie],
+          nacimiento: formatoFecha.format(m.fechaNacimiento),
           dueno: null,
         }));
   } catch {
@@ -122,7 +126,7 @@ export default async function Home() {
         <div>
           <h1 className="text-2xl font-bold">Libreta sanitaria</h1>
           <p className="mt-2 text-sm opacity-70">
-            {usuario.nombre} · {esVeterinario ? "Veterinario" : "Dueño"}
+            {usuario.nombre} · {NOMBRE_ROL[usuario.rol]}
           </p>
         </div>
 
@@ -168,20 +172,14 @@ export default async function Home() {
           <h2 className="text-lg font-semibold">
             {esVeterinario ? "Mis pacientes" : "Mis mascotas"}
           </h2>
-          <ul className="mt-4 space-y-3">
-            {mascotas.map((mascota) => (
-              <li key={mascota.id} className="rounded-lg border p-4">
-                <h3 className="font-medium">{mascota.nombre}</h3>
-                <p className="mt-1 text-sm opacity-80">
-                  {mascota.especie === "PERRO" ? "Perro" : "Gato"} · nacida el{" "}
-                  {formatoFecha.format(mascota.fechaNacimiento)}
-                </p>
-                {mascota.dueno && (
-                  <p className="mt-2 text-xs opacity-60">de {mascota.dueno}</p>
-                )}
-              </li>
-            ))}
-          </ul>
+
+          {/*
+            Un Server Component renderizando uno de cliente. La dirección
+            importa: de acá para abajo es navegador, de acá para arriba es
+            servidor. Lo único que cruza son estas props, ya convertidas a
+            texto plano.
+          */}
+          <BuscadorMascotas mascotas={mascotas} />
         </section>
       )}
     </main>
