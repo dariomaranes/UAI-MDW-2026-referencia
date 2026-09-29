@@ -5,5 +5,16 @@
   // marca un error donde no lo hay. Con esto el editor valida con la misma
   // versión que usa el CLI.
   "prisma.pinToPrisma6": true,
-  "prisma.hidePrisma6Prompts": true
+  "prisma.hidePrisma6Prompts": true,
+
+  // Lo mismo con TypeScript: VS Code trae su propia versión, y si es más nueva
+  // que la del proyecto marca errores que `npm run typecheck` no tiene. El caso
+  // concreto es `import "./globals.css"` en app/layout.tsx, que TypeScript 6
+  // reporta como TS2882 y TypeScript 5 acepta sin problema.
+  //
+  // Con esto el editor usa el TypeScript de node_modules, el mismo que el CLI.
+  // La primera vez VS Code pide confirmación: Cmd+Shift+P → "TypeScript: Select
+  // TypeScript Version" → "Use Workspace Version".
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
 }
