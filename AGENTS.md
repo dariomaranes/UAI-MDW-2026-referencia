@@ -18,6 +18,7 @@ Lo que el sistema tiene que hacer está en [`docs/spec.md`](./docs/spec.md): ent
 
 - **Antes de escribir lógica de dominio, leelo.** Las reglas de la sección 6 no se deducen del código.
 - **Si algo no está ahí, no lo inventes: preguntá.** Una regla de negocio adivinada es un error que compila y que nadie detecta hasta producción.
+- **Las pantallas y sus direcciones salen del mapa de pantallas de la sección 5.** No inventes rutas: una dirección que se improvisa hoy no se puede cambiar mañana sin romper los enlaces que ya se compartieron. Si falta una fila, preguntá antes de crear la ruta.
 - Las reglas no se copian a este archivo: viven en un solo lugar y se leen desde ahí.
 
 ## Stack
@@ -47,7 +48,9 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 |---|---|
 | Una página | `app/(public)/` si es sin sesión, `app/(app)/` si requiere sesión |
 | Un endpoint | `app/api/<recurso>/route.ts` |
-| Un componente reutilizable | `components/` |
+| Un componente reutilizable del dominio | `components/` |
+| Un componente de UI base (botón, tarjeta, badge) | `components/ui/`, traído con `npx shadcn@latest add` |
+| El estado de carga o de error de una pantalla | `loading.tsx` / `error.tsx` al lado de su `page.tsx` |
 | Una consulta a la base | `lib/db/<entidad>.ts` |
 | Un schema de validación | `lib/schemas/<entidad>.ts` |
 | Un helper sin dependencias | `lib/utils.ts` |
@@ -69,13 +72,22 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 
 ### Seguridad
 - **La autorización se verifica siempre en el servidor**, en cada Route Handler y cada Server Action. Que la UI esconda un botón no es una medida de seguridad.
+- **Redirigir al login desde un layout no es autorización.** Un layout no se vuelve a ejecutar en
+  cada navegación del cliente: cada página verifica igual, y cada consulta sigue llevando el id de
+  la sesión adentro.
 - Nunca confiar en un `userId` o un `role` que venga del cliente: se leen de la sesión.
 - Los secretos van en variables de entorno. Ninguna variable con secretos lleva el prefijo `NEXT_PUBLIC_`.
 
 ### React / Next
 - Los componentes son Server Components por defecto. `"use client"` solo si hay estado, efectos o eventos del navegador.
 - Un componente por archivo, en PascalCase. Los archivos de utilidades, en camelCase.
-- Los estados de carga y de error se resuelven siempre; no dejar la pantalla en blanco.
+- **Una pantalla que lee datos resuelve sus cinco estados:** cargando (`loading.tsx`), con datos,
+  vacío, búsqueda sin resultados y error (`error.tsx`). Ninguno queda en blanco.
+- **Vacío y sin resultados no son el mismo estado y no dicen lo mismo.** "No cargaste nada todavía"
+  lo resuelve el servidor; "ninguno coincide con lo que buscaste" lo resuelve el componente que
+  tiene el filtro, porque es el único que sabe qué se escribió.
+- La pantalla de error no muestra el mensaje de la excepción: el detalle va a `console.error`.
+- Ningún estado se comunica solo con color: siempre hay texto además del color.
 
 ### Estilos
 - Solo Tailwind. Nada de CSS suelto ni estilos inline salvo valores calculados en runtime.

@@ -146,6 +146,35 @@ El recorrido completo, paso a paso, del flujo que da valor al sistema (no un ABM
 6. El dueño muestra el certificado en el aeropuerto o la guardería.
 7. Quien lo recibe abre la página pública con el código y ve si está vigente.
 
+### El mapa de pantallas
+
+Qué pantalla realiza cada paso, con qué dirección y quién la puede abrir. Se completa **antes**
+de escribir la pantalla —o de pedírsela a un asistente—, por el mismo motivo por el que la API
+se definió antes que el cliente: la dirección es el identificador del recurso, y una que se
+inventa sobre la marcha después no se puede cambiar sin romper los enlaces que ya se mandaron.
+
+| Paso | Pantalla | Dirección | Quién la ve |
+|---|---|---|---|
+| — | Ingreso | `/ingresar` | Cualquiera, sin sesión |
+| — | Listado: lo que te corresponde | `/` | Con sesión. El rol cambia la consulta |
+| 1 | Registrar mascota | `/mascotas/nueva` | DUEÑO · **falta (clase 11)** |
+| 2 | Registrar aplicación | `/mascotas/:id/aplicaciones/nueva` | VETERINARIO · **falta (clase 11)** |
+| 3 | Ficha de la mascota, con el estado sanitario y el pedido | `/mascotas/:id` | Con sesión, solo si es tuya o la atendés. El botón de pedir, **falta (clase 11)** |
+| 4 | — | — | No es una pantalla: es la regla de `lib/estado-sanitario.ts`. Se ve en `/mascotas/:id` |
+| 5 | Emitir certificado | `/certificados/:id` | VETERINARIO · **falta (clase 11)** |
+| 6 | — | — | Pasa fuera del sistema: el dueño muestra el PDF o el código |
+| 7 | Verificación pública | `/verificacion/:codigo` | **Cualquiera, sin sesión** |
+
+Fuera del flujo, una pantalla interna: **`/sistema`**, la galería de componentes con todos sus
+estados. Pide sesión como cualquier otra pantalla de `(app)`.
+
+Dos cosas que este mapa deja a la vista y una lista de pasos en prosa no:
+
+- **El flujo está construido por los dos extremos.** Lo que falta son las cuatro pantallas que
+  escriben, y por eso el hito del 20/10 es "el flujo principal navegable desde la UI".
+- **Una sola pantalla no pide sesión**, y es la del paso 7. Esa línea de la tabla es la razón
+  de que existan los grupos de ruta `(public)` y `(app)`.
+
 ## 6. Reglas de negocio
 
 Las restricciones que **no** son obvias y que la IA no puede adivinar. Estas son las que hay que
