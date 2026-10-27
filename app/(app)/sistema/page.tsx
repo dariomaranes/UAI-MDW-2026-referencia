@@ -46,6 +46,7 @@ import type {
 } from "@/lib/estado-sanitario";
 import { EstadoSanitario } from "@/components/estado-sanitario";
 import { SinDatos } from "@/components/sin-datos";
+import { Campo } from "@/components/campo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -290,6 +291,50 @@ export default function Sistema() {
               <Input id="muestra-buscar" placeholder="Nombre de la mascota" />
             </CardContent>
           </Card>
+        </div>
+      </Bloque>
+
+      <Bloque
+        titulo="Campo"
+        descripcion="El campo de formulario completo: etiqueta conectada al control, ayuda, error y el estado inválido. Es el componente que evita que cada formulario reinvente la accesibilidad, y mal hecho es invisible para quien ve la pantalla."
+      >
+        <div className="grid w-full gap-5 sm:grid-cols-2">
+          <Campo
+            etiqueta="Nombre"
+            nombre="muestra-nombre"
+            required
+            defaultValue="Laika"
+          />
+          <Campo
+            etiqueta="Chip"
+            nombre="muestra-chip"
+            inputMode="numeric"
+            ayuda="Opcional. Son 15 dígitos, sin espacios ni guiones."
+          />
+          <Campo
+            etiqueta="Fecha de nacimiento"
+            nombre="muestra-fecha"
+            type="date"
+            required
+            defaultValue="2050-01-01"
+            errores={["La fecha de nacimiento no puede ser futura"]}
+          />
+          <Campo
+            etiqueta="Especie"
+            nombre="muestra-especie"
+            required
+            ayuda="Con un <select> nativo, que en el teléfono abre el selector del sistema."
+            control={(props) => (
+              <select
+                {...props}
+                defaultValue="PERRO"
+                className="h-9 w-full rounded-lg border bg-background px-2.5 text-sm"
+              >
+                <option value="PERRO">Perro</option>
+                <option value="GATO">Gato</option>
+              </select>
+            )}
+          />
         </div>
       </Bloque>
 

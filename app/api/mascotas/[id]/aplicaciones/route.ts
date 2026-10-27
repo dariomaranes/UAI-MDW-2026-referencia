@@ -17,20 +17,34 @@
  */
 import { NextResponse } from "next/server";
 import { registrarAplicacionSchema } from "@/lib/schemas/aplicacion";
-import {
-  listarAplicacionesDeMascota,
-  registrarAplicacion,
-} from "@/lib/db/aplicaciones";
-import { obtenerMascota, obtenerMascotaVisiblePara } from "@/lib/db/mascotas";
+import { listarAplicacionesDeMascota } from "@/lib/db/aplicaciones";
+import { obtenerMascotaVisiblePara } from "@/lib/db/mascotas";
 import { requerirUsuario } from "@/lib/auth";
 import { responderError } from "@/lib/errores";
-import { obtenerVacuna } from "@/lib/db/vacunas";
 import {
-  alcanzaLaEdadMinima,
-  calcularProximaDosis,
-} from "@/lib/estado-sanitario";
+  registrarAplicacionDeVacuna,
+  type MotivoDeRechazo,
+} from "@/lib/casos/registrar-aplicacion";
 
 type Contexto = { params: Promise<{ id: string }> };
+
+/**
+ * La traducción de este handler: motivo del dominio → status code.
+ *
+ * `Record<MotivoDeRechazo, number>` y no un `switch`: el día que el caso de
+ * uso agregue un motivo nuevo, esto deja de compilar hasta que alguien decida
+ * con qué número se responde. Con un `switch` sin `default`, el motivo nuevo
+ * saldría como 500 y parecería un bug del servidor.
+ *
+ * 404 cuando el recurso no existe; 409 cuando existe pero el estado del
+ * sistema no admite la operación. Es la tabla de la clase 5.
+ */
+const STATUS_POR_MOTIVO: Record<MotivoDeRechazo, number> = {
+  MASCOTA_NO_ENCONTRADA: 404,
+  VACUNA_NO_ENCONTRADA: 404,
+  ESPECIE_NO_COINCIDE: 409,
+  EDAD_INSUFICIENTE: 409,
+};
 
 export async function GET(_request: Request, { params }: Contexto) {
   try {
@@ -75,81 +89,23 @@ export async function POST(request: Request, { params }: Contexto) {
 
     const datos = resultado.data;
 
-    // 2. AUTORIZAR. Acá el 403 corresponde y el 404 no: el problema es el
-    //    ROL, no la pertenencia. Un dueño no registra aplicaciones aunque la
-    //    mascota sea suya — la vacuna la aplica un profesional, y el
-    //    certificado que sale de ahí vale porque lo firmó alguien habilitado.
-    //
-    //    `requerirUsuario("VETERINARIO")` hace las dos preguntas de una: si
-    //    no hay sesión lanza NoAutenticado (401) y si el rol no alcanza,
-    //    NoAutorizado (403).
+    // 2. AUTORIZAR. Solo el veterinario registra aplicaciones.
     const veterinario = await requerirUsuario("VETERINARIO");
 
-    // Un veterinario atiende mascotas de cualquier dueño, así que esta
-    // consulta no lleva `duenoId`: el permiso ya se verificó arriba.
-    const mascota = await obtenerMascota(datos.mascotaId);
+    // 3. EJECUTAR EL CASO DE USO. Las reglas —especie, edad mínima, próxima
+    //    dosis— ya no están acá: viven en `lib/casos/`, porque desde la clase
+    //    12 las usa también el formulario. Este handler quedó con lo único que
+    //    es suyo: traducir el resultado a HTTP.
+    const registro = await registrarAplicacionDeVacuna(datos, veterinario.id);
 
-    if (!mascota) {
-      return NextResponse.json({ error: "Mascota no encontrada" }, { status: 404 });
-    }
-
-    const vacuna = await obtenerVacuna(datos.vacunaId);
-
-    if (!vacuna) {
-      return NextResponse.json({ error: "Vacuna no encontrada" }, { status: 404 });
-    }
-
-    // 3. LAS REGLAS DE NEGOCIO. Todo lo de acá abajo necesitó dos consultas
-    //    para poder opinar, y por eso ninguna de estas dos reglas podía vivir
-    //    en el schema.
-
-    // El catálogo tiene la misma vacuna para perro y para gato, con edades
-    // mínimas distintas. Aplicar la versión felina a un perro no es un error
-    // de formato: el body está perfecto y el id existe. Es un 409.
-    if (vacuna.especie !== mascota.especie) {
+    if (!registro.ok) {
       return NextResponse.json(
-        {
-          error: `${vacuna.nombre} del catálogo corresponde a ${vacuna.especie}, y ${mascota.nombre} es ${mascota.especie}`,
-        },
-        { status: 409 },
+        { error: registro.mensaje },
+        { status: STATUS_POR_MOTIVO[registro.motivo] },
       );
     }
 
-    // La edad se evalúa contra la FECHA DE LA APLICACIÓN, no contra hoy.
-    // Registrar hoy una vacuna que se aplicó hace dos años tiene que
-    // verificar la edad que la mascota tenía ese día, no la que tiene ahora.
-    // Es la clase de detalle que solo se puede razonar si la fecha es un
-    // parámetro de la regla y no un `new Date()` escondido adentro.
-    if (
-      !alcanzaLaEdadMinima(
-        mascota.fechaNacimiento,
-        vacuna.edadMinimaMeses,
-        datos.fecha,
-      )
-    ) {
-      return NextResponse.json(
-        {
-          error: `${vacuna.nombre} se aplica a partir de los ${vacuna.edadMinimaMeses} meses`,
-          // El dato estructurado va aparte del mensaje: la pantalla lo usa
-          // para mostrar desde cuándo, sin tener que parsear castellano.
-          edadMinimaMeses: vacuna.edadMinimaMeses,
-        },
-        { status: 409 },
-      );
-    }
-
-    // 4. DELEGAR. La próxima dosis la calcula el servidor con el plan de la
-    //    vacuna: es un dato derivado y por eso salió del body en esta clase.
-    const aplicacion = await registrarAplicacion(
-      datos,
-      // Quién aplicó la vacuna baja de la sesión, nunca del body. Es un
-      // registro sanitario: dice quién se hizo responsable.
-      veterinario.id,
-      calcularProximaDosis(datos.fecha, vacuna.intervaloRefuerzoDias),
-    );
-
-    // 5. RESPONDER.
-    return NextResponse.json(aplicacion, { status: 201 });
+    return NextResponse.json(registro.aplicacion, { status: 201 });
   } catch (error) {
     return responderError("POST /api/mascotas/:id/aplicaciones", error);
   }

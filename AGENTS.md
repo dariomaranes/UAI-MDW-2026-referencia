@@ -75,6 +75,12 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 - **Redirigir al login desde un layout no es autorización.** Un layout no se vuelve a ejecutar en
   cada navegación del cliente: cada página verifica igual, y cada consulta sigue llevando el id de
   la sesión adentro.
+- **Una Server Action es un endpoint público con otra sintaxis.** `"use server"` no la hace
+  privada: Next.js publica cada función exportada como un endpoint que el navegador puede llamar
+  sin pasar por el formulario. Cada acción verifica sesión, rol y datos por su cuenta, igual que un
+  Route Handler.
+- **Lo que el cliente no necesita elegir, el cliente no lo manda.** El id del usuario sale de la
+  sesión; el id del recurso, de la URL. Un `<input type="hidden">` se edita con el inspector.
 - Nunca confiar en un `userId` o un `role` que venga del cliente: se leen de la sesión.
 - Los secretos van en variables de entorno. Ninguna variable con secretos lleva el prefijo `NEXT_PUBLIC_`.
 
@@ -88,10 +94,23 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
   tiene el filtro, porque es el único que sabe qué se escribió.
 - La pantalla de error no muestra el mensaje de la excepción: el detalle va a `console.error`.
 - Ningún estado se comunica solo con color: siempre hay texto además del color.
+- **Los formularios usan Server Actions y `useActionState`**, no `fetch` contra la propia API. El
+  estado del formulario es lo que devolvió la acción: nada de un `useState` por campo.
+- **Un formulario que falla no se vacía.** La acción devuelve lo que la persona había escrito y los
+  campos se vuelven a pintar con eso.
+- **Dos tipos de error y dos lugares:** los de validación van debajo de su campo; el rechazo de una
+  regla de negocio va arriba del formulario. Es la diferencia entre el 400 y el 409.
+- **Mientras la acción corre, el botón se deshabilita** y dice qué está pasando. Evita el doble
+  envío, que es impaciencia y no un ataque.
+- **Todo campo tiene un `label` asociado por `htmlFor`/`id`**, y el error se conecta con
+  `aria-describedby` y `aria-invalid`. Un error que solo se ve no existe para un lector de pantalla.
+- **Mobile-first:** se escribe primero el caso angosto —375px, botones a lo ancho, sin scroll
+  horizontal— y el ancho se agrega con `sm:` hacia arriba.
 
 ### Estilos
 - Solo Tailwind. Nada de CSS suelto ni estilos inline salvo valores calculados en runtime.
 - Los componentes de UI base salen de shadcn/ui y se editan en `components/ui/`.
+- Los componentes de shadcn/ui de este proyecto están hechos sobre Base UI, no sobre Radix: no existe `asChild`. Para que un `Button` sea un link se usa `render={<Link href="..." />}` **junto con `nativeButton={false}`**, porque lo que se dibuja es un `<a>` y no un `<button>`.
 
 ### Git
 - Ramas: `feat/<descripcion-corta>`, `fix/<descripcion-corta>`.

@@ -44,6 +44,7 @@ import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
 import { estadoSanitario } from "@/lib/estado-sanitario";
 import { NOMBRE_ESPECIE } from "@/lib/etiquetas";
 import { EstadoSanitario } from "@/components/estado-sanitario";
+import { Button } from "@/components/ui/button";
 import { SinDatos } from "@/components/sin-datos";
 import {
   Card,
@@ -181,6 +182,22 @@ export default async function DetalleMascota({ params }: Props) {
         ) : (
           <EstadoSanitario items={items} />
         )}
+
+        {/*
+          La acción del veterinario, pegada a la información que la motiva: se
+          mira qué falta y se registra desde ahí mismo. Un botón arriba de
+          todo, lejos de la lista, obligaría a recordar qué decía la lista.
+        */}
+        {usuario.rol === "VETERINARIO" ? (
+          <Button
+            render={<Link href={`/mascotas/${mascota.id}/aplicaciones/nueva`} />}
+            nativeButton={false}
+            variant="outline"
+            className="w-full sm:w-auto"
+          >
+            Registrar una aplicación
+          </Button>
+        ) : null}
       </section>
 
       <section className="space-y-3">
@@ -222,14 +239,14 @@ export default async function DetalleMascota({ params }: Props) {
       </section>
 
       {/*
-        Lo que NO está en esta pantalla, y es a propósito: no hay un botón de
-        "registrar aplicación" para el veterinario ni uno de "pedir
-        certificado" para el dueño. Las dos cosas son formularios que escriben
-        en la base, y eso es la clase 11.
+        En la clase 12 esta pantalla dejó de ser solo de lectura: el
+        veterinario ya puede registrar una aplicación desde acá.
 
-        Dejar el botón puesto y que no haga nada sería peor que no tenerlo: una
-        interfaz que promete una acción que no existe enseña a desconfiar del
-        resto de la pantalla.
+        Lo que todavía NO está, y sigue siendo a propósito: el botón de "pedir
+        certificado" del dueño. Dejarlo puesto y que no haga nada sería peor
+        que no tenerlo —una interfaz que promete una acción que no existe
+        enseña a desconfiar del resto de la pantalla—, así que aparece el día
+        que exista la pantalla detrás.
       */}
     </div>
   );

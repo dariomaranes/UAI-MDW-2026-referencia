@@ -43,6 +43,7 @@ export default function NoEncontrado() {
       */}
       <Button
         render={<Link href="/" />}
+        nativeButton={false}
         variant="outline"
         size="sm"
       >

@@ -157,11 +157,11 @@ inventa sobre la marcha después no se puede cambiar sin romper los enlaces que 
 |---|---|---|---|
 | — | Ingreso | `/ingresar` | Cualquiera, sin sesión |
 | — | Listado: lo que te corresponde | `/` | Con sesión. El rol cambia la consulta |
-| 1 | Registrar mascota | `/mascotas/nueva` | DUEÑO · **falta (clase 11)** |
-| 2 | Registrar aplicación | `/mascotas/:id/aplicaciones/nueva` | VETERINARIO · **falta (clase 11)** |
-| 3 | Ficha de la mascota, con el estado sanitario y el pedido | `/mascotas/:id` | Con sesión, solo si es tuya o la atendés. El botón de pedir, **falta (clase 11)** |
+| 1 | Registrar mascota | `/mascotas/nueva` | DUEÑO |
+| 2 | Registrar aplicación | `/mascotas/:id/aplicaciones/nueva` | VETERINARIO |
+| 3 | Ficha de la mascota, con el estado sanitario y el pedido | `/mascotas/:id` | Con sesión, solo si es tuya o la atendés. El botón de pedir, **falta** |
 | 4 | — | — | No es una pantalla: es la regla de `lib/estado-sanitario.ts`. Se ve en `/mascotas/:id` |
-| 5 | Emitir certificado | `/certificados/:id` | VETERINARIO · **falta (clase 11)** |
+| 5 | Emitir certificado | `/certificados/:id` | VETERINARIO · **falta** |
 | 6 | — | — | Pasa fuera del sistema: el dueño muestra el PDF o el código |
 | 7 | Verificación pública | `/verificacion/:codigo` | **Cualquiera, sin sesión** |
 
@@ -170,8 +170,10 @@ estados. Pide sesión como cualquier otra pantalla de `(app)`.
 
 Dos cosas que este mapa deja a la vista y una lista de pasos en prosa no:
 
-- **El flujo está construido por los dos extremos.** Lo que falta son las cuatro pantallas que
-  escriben, y por eso el hito del 20/10 es "el flujo principal navegable desde la UI".
+- **El flujo se completa de los extremos hacia el medio.** Ya están las pantallas que lo abren
+  —registrar la mascota y registrar la aplicación— y la que lo cierra, la verificación pública.
+  Faltan las dos del certificado, y con ellas se cumple el hito "el flujo principal navegable
+  desde la UI".
 - **Una sola pantalla no pide sesión**, y es la del paso 7. Esa línea de la tabla es la razón
   de que existan los grupos de ruta `(public)` y `(app)`.
 

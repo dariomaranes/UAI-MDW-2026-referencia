@@ -77,3 +77,12 @@ export async function registrarAplicacion(
     },
   });
 }
+
+/**
+ * Lo que devuelve `registrarAplicacion`, con nombre propio.
+ *
+ * Se deriva de la función en vez de escribirse a mano: si mañana cambia el
+ * `select`, el tipo cambia solo y lo que lo consuma deja de compilar si ya no
+ * encaja. Un tipo escrito a mano, en cambio, miente en silencio.
+ */
+export type AplicacionCreada = Awaited<ReturnType<typeof registrarAplicacion>>;

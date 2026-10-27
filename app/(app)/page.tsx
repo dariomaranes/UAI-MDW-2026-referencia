@@ -41,6 +41,8 @@ import {
 } from "@/lib/db/mascotas";
 import { BuscadorMascotas, type Fila } from "@/components/buscador-mascotas";
 import { SinDatos } from "@/components/sin-datos";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { NOMBRE_ESPECIE } from "@/lib/etiquetas";
 
 // Esta página lee datos que cambian, así que se renderiza en cada request.
@@ -87,15 +89,33 @@ export default async function Home() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {esVeterinario ? "Mis pacientes" : "Mis mascotas"}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {esVeterinario
-            ? "Las mascotas en las que registraste al menos una aplicación."
-            : "Las mascotas que cargaste en el sistema."}
-        </p>
+      {/*
+        El encabezado y la acción principal, en una fila que se apila en el
+        teléfono. El botón aparece SOLO para el dueño, porque un veterinario
+        no carga mascotas. Esconderlo es cortesía: lo que impide es el
+        `requerirUsuario("DUENO")` de la Server Action.
+      */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {esVeterinario ? "Mis pacientes" : "Mis mascotas"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {esVeterinario
+              ? "Las mascotas en las que registraste al menos una aplicación."
+              : "Las mascotas que cargaste en el sistema."}
+          </p>
+        </div>
+
+        {esVeterinario ? null : (
+          <Button
+            render={<Link href="/mascotas/nueva" />}
+            nativeButton={false}
+            className="w-full sm:w-auto"
+          >
+            Registrar mascota
+          </Button>
+        )}
       </div>
 
       {/*
@@ -122,6 +142,20 @@ export default async function Home() {
             esVeterinario
               ? "Cuando registres la aplicación de una vacuna, la mascota aparece en esta lista."
               : "Registrá tu primera mascota y después vas a poder ver su estado sanitario y pedir certificados."
+          }
+          /*
+            Desde la clase 12 este estado vacío ya puede ofrecer la salida:
+            hasta ayer explicaba el vacío y no tenía qué botón poner, porque
+            no existía la pantalla de alta. Un estado vacío con acción es el
+            mejor momento para enseñar un sistema: la persona está ahí y no
+            sabe qué hacer.
+          */
+          accion={
+            esVeterinario ? undefined : (
+              <Button render={<Link href="/mascotas/nueva" />} nativeButton={false}>
+                Registrar mi primera mascota
+              </Button>
+            )
           }
         />
       ) : (
