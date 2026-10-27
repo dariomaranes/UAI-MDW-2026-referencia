@@ -21,31 +21,35 @@
  * quién lo emitió. Cuatro cosas, todas juntas o ninguna. Desde la clase 5 las
  * cuatro están implementadas — hasta ayer, la primera era un TODO.
  *
+ * Desde la clase 12 las reglas de la emisión viven en
+ * `lib/casos/emitir-certificado.ts`, porque las usa también el botón "Emitir"
+ * de la pantalla del certificado. Este handler quedó con lo que es suyo:
+ * autorizar y traducir el resultado a HTTP.
+ *
  * Y cada transición tiene su propio permiso: emitir lo hace cualquier
  * veterinario, anular solo el que emitió. Mezclados en un PATCH, esos dos
  * permisos distintos conviven en el mismo bloque de código.
  */
 import { NextResponse } from "next/server";
-import {
-  calcularVencimiento,
-  generarCodigoVerificacion,
-} from "@/lib/certificados";
-import {
-  emitirCertificado,
-  guardarUrlPdf,
-  obtenerCertificado,
-} from "@/lib/db/certificados";
-import { generarPdfCertificado } from "@/lib/certificados-pdf";
-import { subirPdf } from "@/lib/servicios/storage";
 import { requerirUsuario } from "@/lib/auth";
 import { responderError } from "@/lib/errores";
-import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
 import {
-  primerVencimientoObligatorio,
-  vacunasFaltantes,
-} from "@/lib/estado-sanitario";
+  emitirCertificadoSolicitado,
+  type MotivoDeRechazoEmision,
+} from "@/lib/casos/emitir-certificado";
 
 type Contexto = { params: Promise<{ id: string }> };
+
+/**
+ * 404 si no existe; 409 si existe y el estado no admite emitirlo — porque
+ * venció una obligatoria o porque ya estaba emitido. El cliente no mandó nada
+ * mal en ninguno de los dos casos: por eso no es 400.
+ */
+const STATUS_POR_MOTIVO: Record<MotivoDeRechazoEmision, number> = {
+  CERTIFICADO_NO_ENCONTRADO: 404,
+  VACUNAS_FALTANTES: 409,
+  NO_PENDIENTE: 409,
+};
 
 /**
  * La dirección donde un tercero verifica este certificado, impresa en el PDF.
@@ -76,113 +80,29 @@ export async function POST(request: Request, { params }: Contexto) {
     //    entera: la verificación va en el servidor, no en la pantalla.
     const veterinario = await requerirUsuario("VETERINARIO");
 
-    const certificado = await obtenerCertificado(id);
-
-    if (!certificado) {
-      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-    }
-
-    // 3. LAS REGLAS. Acá vivía el otro `TODO (clase 5)`.
-    //
-    //    Es LA MISMA regla que en la solicitud, y se vuelve a evaluar a
-    //    propósito: entre que el dueño solicitó y el veterinario emite pasa
-    //    tiempo, y en ese tiempo una obligatoria pudo vencer. El criterio de
-    //    aceptación de la H5 lo pide con todas las letras.
-    //
-    //    Es también la mejor justificación de por qué la regla no vive
-    //    adentro de un handler: dos endpoints hacen la misma pregunta, y dos
-    //    implementaciones distintas de la misma pregunta son un bug con fecha
-    //    de vencimiento.
-    const hoy = new Date();
-
-    const { plan, aplicaciones } = await datosDelEstadoSanitario(
-      certificado.mascota.especie,
-      certificado.mascota.id,
+    // 3. LAS REGLAS Y LA OPERACIÓN, en el caso de uso.
+    const emision = await emitirCertificadoSolicitado(
+      id,
+      veterinario.id,
+      urlDeVerificacion(request),
     );
 
-    const faltantes = vacunasFaltantes(
-      plan,
-      aplicaciones,
-      certificado.mascota.fechaNacimiento,
-      hoy,
-    );
-
-    if (faltantes.length > 0) {
+    if (!emision.ok) {
       return NextResponse.json(
         {
-          error: "La mascota dejó de estar al día con las vacunas obligatorias",
-          faltantes,
+          error: emision.mensaje,
+          ...(emision.motivo === "VACUNAS_FALTANTES"
+            ? { faltantes: emision.faltantes }
+            : {}),
         },
-        { status: 409 },
+        { status: STATUS_POR_MOTIVO[emision.motivo] },
       );
     }
 
-    // 4. DELEGAR.
-    //
-    // Y acá se completa la regla de vencimiento de la spec: "vence cuando
-    // vence la primera de las vacunas obligatorias que lo respaldan, O a los
-    // 30 días de emitido, lo que ocurra primero". El segundo término estaba
-    // desde la clase 4; el primero es este segundo parámetro, que hasta hoy
-    // iba en `null` puesto a mano.
-    //
-    // Se calcula UNA VEZ, al emitir, y se guarda. A diferencia del estado
-    // sanitario —que se calcula al leerlo— esto es parte de lo que el
-    // certificado AFIRMA: no puede cambiar retroactivamente porque después se
-    // aplique otra vacuna.
-    const vencimientoDeVacunas = primerVencimientoObligatorio(
-      plan,
-      aplicaciones,
-      certificado.mascota.fechaNacimiento,
-      hoy,
-    );
-
-    const emitido = await emitirCertificado(
-      id,
-      // El emisor baja de la sesión. Es lo que hace cumplir la regla de la
-      // spec "solo el veterinario que lo emitió puede anularlo": si este dato
-      // viniera del body, esa regla sería decorativa.
-      veterinario.id,
-      generarCodigoVerificacion(),
-      calcularVencimiento(hoy, vencimientoDeVacunas),
-    );
-
-    // `emitirCertificado` lleva `estado: "SOLICITADO"` en el WHERE: si vuelve
-    // null es porque el certificado ya estaba emitido o anulado. El cliente no
-    // mandó nada mal —por eso no es 400— es el estado actual el que choca.
-    if (!emitido) {
-      return NextResponse.json(
-        { error: `El certificado no está pendiente de emisión (${certificado.estado})` },
-        { status: 409 },
-      );
-    }
-
-    // ---------------------------------------------------------------------
-    // A PARTIR DE ACÁ EL CERTIFICADO YA ESTÁ EMITIDO.
-    //
-    // Es la línea más importante de este archivo, y es una línea imaginaria:
-    // separa la OPERACIÓN de lo que viene después. Nada de lo que sigue puede
-    // deshacer la emisión, y por eso nada de lo que sigue usa `throw`.
-    //
-    // El PDF es un servicio ACCESORIO: la spec lo decidió en la clase 2 —"si
-    // falla el storage, el certificado igual se emite y queda verificable
-    // online; lo que vale es el registro, no el archivo"—. Ponerlo antes de
-    // emitir, o dejar que su falla rompa el request, sería contradecir esa
-    // decisión desde el código.
-    // ---------------------------------------------------------------------
-    const pdf = await generarPdfCertificado(emitido, urlDeVerificacion(request));
-
-    // `subirPdf` devuelve null si el storage no respondió. No hay rama de
-    // error: si no hay URL, no se guarda nada y listo.
-    const urlPdf = await subirPdf(`${emitido.codigoVerificacion}.pdf`, pdf);
-
-    if (urlPdf) {
-      await guardarUrlPdf(emitido.id, urlPdf);
-    }
-
-    // 5. RESPONDER. 201 en los dos casos: con PDF o sin PDF, la emisión
-    //    ocurrió. `urlPdf` en null le dice a la pantalla que lo muestre como
-    //    "en preparación", no como un error.
-    return NextResponse.json({ ...emitido, urlPdf }, { status: 201 });
+    // 4. RESPONDER. 201 con PDF o sin PDF: la emisión ocurrió. `urlPdf` en
+    //    null le dice a la pantalla que lo muestre como "en preparación", no
+    //    como un error.
+    return NextResponse.json(emision.certificado, { status: 201 });
   } catch (error) {
     return responderError("POST /api/certificados/:id/emision", error);
   }

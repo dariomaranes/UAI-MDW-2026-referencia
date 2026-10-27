@@ -36,6 +36,18 @@ export type EstadoDelFormulario = {
   errores?: Record<string, string[] | undefined>;
   /** Un rechazo del caso de uso: los datos eran válidos y aun así no se pudo. */
   mensaje?: string;
+  /**
+   * Lo que el rechazo enumera, cuando la spec pide enumerarlo: las vacunas
+   * que faltan para pedir un certificado (H4). Una lista y no una frase
+   * armada con comas, para que la pantalla la pinte como lista.
+   */
+  detalles?: string[];
+  /**
+   * A dónde ir para resolverlo, cuando hay un lugar: la solicitud que ya está
+   * esperando, por ejemplo. Un rechazo que dice "ya existe" y no dice dónde
+   * deja a la persona buscando.
+   */
+  enlace?: { href: string; texto: string };
   valores?: ValoresDelFormulario;
 };
 

@@ -8,16 +8,28 @@
  */
 import { NextResponse } from "next/server";
 import { solicitarCertificadoSchema } from "@/lib/schemas/certificado";
-import {
-  listarCertificadosDeDueno,
-  solicitarCertificado,
-  solicitudPendiente,
-} from "@/lib/db/certificados";
-import { obtenerMascotaDeDueno } from "@/lib/db/mascotas";
+import { listarCertificadosDeDueno } from "@/lib/db/certificados";
 import { requerirUsuario } from "@/lib/auth";
 import { responderError } from "@/lib/errores";
-import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
-import { vacunasFaltantes } from "@/lib/estado-sanitario";
+import {
+  solicitarCertificadoDeMascota,
+  type MotivoDeRechazoSolicitud,
+} from "@/lib/casos/solicitar-certificado";
+
+/**
+ * Motivo del dominio → status code. Un `Record` y no un `switch`, por lo mismo
+ * que en las aplicaciones: un motivo nuevo en el caso de uso rompe la
+ * compilación acá hasta que alguien decida con qué número se responde.
+ *
+ * 409 y no 400 en los dos rechazos: el body está perfecto. Es el ESTADO del
+ * sistema el que no permite la operación, y se arregla vacunando al animal o
+ * esperando la emisión, no mandando el request distinto.
+ */
+const STATUS_POR_MOTIVO: Record<MotivoDeRechazoSolicitud, number> = {
+  MASCOTA_NO_ENCONTRADA: 404,
+  SOLICITUD_PENDIENTE: 409,
+  VACUNAS_FALTANTES: 409,
+};
 
 export async function GET() {
   try {
@@ -43,84 +55,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. AUTORIZAR.
+    // 2. AUTORIZAR. Sin rol: la pertenencia la resuelve el caso de uso, con
+    //    el `duenoId` en el WHERE. Para un veterinario, ninguna mascota es
+    //    "suya", y la respuesta es el mismo 404.
     const usuario = await requerirUsuario();
 
-    // La mascota se busca ANTES de la regla porque la regla la necesita: sin
-    // su especie y su fecha de nacimiento no hay plan de vacunación que
-    // evaluar. Y de paso resuelve el 404 — el `duenoId` va en el WHERE, así
-    // que la mascota del vecino no existe para este dueño.
-    const mascota = await obtenerMascotaDeDueno(resultado.data.mascotaId, usuario.id);
+    // 3. LAS REGLAS, que desde la clase 12 viven en `lib/casos/` porque las
+    //    usa también el pedido desde la ficha de la mascota. Acá quedó lo
+    //    único que es de este handler: traducir el resultado a HTTP.
+    const solicitud = await solicitarCertificadoDeMascota(
+      resultado.data,
+      usuario.id,
+    );
 
-    if (!mascota) {
-      return NextResponse.json({ error: "Mascota no encontrada" }, { status: 404 });
-    }
+    if (!solicitud.ok) {
+      // Lo que cada rechazo trae además del mensaje viaja en la respuesta:
+      // `faltantes` es el criterio de aceptación de la H4, y
+      // `solicitudPendienteId` le dice al cliente cuál es la que espera.
+      const datos =
+        solicitud.motivo === "VACUNAS_FALTANTES"
+          ? { faltantes: solicitud.faltantes }
+          : solicitud.motivo === "SOLICITUD_PENDIENTE"
+            ? { solicitudPendienteId: solicitud.solicitudPendienteId }
+            : {};
 
-    // 3. LAS REGLAS.
-    //
-    //    La primera es la más barata y la más específica: si ya pidió esto
-    //    mismo y todavía está esperando, no hace falta evaluar nada más.
-    //    Sale del ADR 0002 — apareció probando la API, no de una historia
-    //    original, y por eso primero se escribió en la spec.
-    const pendiente = await solicitudPendiente(mascota.id, resultado.data.motivo);
-
-    if (pendiente) {
       return NextResponse.json(
-        {
-          error: `Ya hay una solicitud pendiente de emisión para ${mascota.nombre} con ese motivo`,
-          // El id, para que la pantalla pueda llevar al dueño hasta ella en
-          // vez de dejarlo adivinando cuál de todas era.
-          solicitudPendienteId: pendiente.id,
-        },
-        { status: 409 },
+        { error: solicitud.mensaje, ...datos },
+        { status: STATUS_POR_MOTIVO[solicitud.motivo] },
       );
     }
 
-    //    La segunda es la de la clase 5. Acá vivía el `TODO (clase 5)`.
-    //
-    //    Tres líneas y ningún `if` con fechas adentro: leer, preguntar,
-    //    traducir. Todo el razonamiento —qué vacuna corresponde a esta edad,
-    //    cuál venció, cuál nunca se aplicó— está en `lib/estado-sanitario.ts`,
-    //    que se prueba con `npm test` sin levantar nada.
-    const { plan, aplicaciones } = await datosDelEstadoSanitario(
-      mascota.especie,
-      mascota.id,
-    );
-
-    const faltantes = vacunasFaltantes(
-      plan,
-      aplicaciones,
-      mascota.fechaNacimiento,
-      new Date(),
-    );
-
-    if (faltantes.length > 0) {
-      // 409 y no 400: el body está perfecto. Es el ESTADO del sistema el que
-      // no permite la operación, y se arregla vacunando al animal, no
-      // mandando el request distinto.
-      //
-      // Y `faltantes` va en su propio campo, no embutido en el mensaje: el
-      // criterio de aceptación de la H4 pide que la respuesta ENUMERE cuáles
-      // faltan, así que ese array es el criterio, no un adorno. El mensaje es
-      // para la persona; el array, para la pantalla que lo va a mostrar.
-      return NextResponse.json(
-        {
-          error: "La mascota no está al día con las vacunas obligatorias",
-          faltantes,
-        },
-        { status: 409 },
-      );
-    }
-
-    // 4. DELEGAR.
-    const certificado = await solicitarCertificado(resultado.data, usuario.id);
-
-    if (!certificado) {
-      return NextResponse.json({ error: "Mascota no encontrada" }, { status: 404 });
-    }
-
-    // 5. RESPONDER.
-    return NextResponse.json(certificado, { status: 201 });
+    // 4. RESPONDER.
+    return NextResponse.json(solicitud.certificado, { status: 201 });
   } catch (error) {
     // Acá llega lo que NO se previó —la base caída, un bug— y, desde la clase
     // 6, también el 401 y el 403 que lanza `requerirUsuario`. Los distingue

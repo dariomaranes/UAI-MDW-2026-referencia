@@ -54,6 +54,47 @@ export async function listarCertificadosDeDueno(
   });
 }
 
+/**
+ * Los certificados de una mascota, para su ficha.
+ *
+ * No filtra por dueño porque no le hace falta: la ficha ya resolvió con
+ * `obtenerMascotaVisiblePara` si quien mira puede ver ESTA mascota, y lo que
+ * cuelga de ella se ve con ella. Recibir un `mascotaId` que no pasó por ese
+ * filtro sería el error, y es de quien llama.
+ */
+export async function listarCertificadosDeMascota(
+  mascotaId: string,
+  limite: number = LIMITE_POR_DEFECTO,
+) {
+  return prisma.certificado.findMany({
+    where: { mascotaId },
+    take: limite,
+    orderBy: { solicitadoEn: "desc" },
+    select: CAMPOS_CERTIFICADO,
+  });
+}
+
+/**
+ * Las solicitudes que esperan a un veterinario, las más viejas primero.
+ *
+ * Todas las del sistema y no solo las de "sus pacientes", porque la spec dice
+ * que emitir lo hace cualquier veterinario. Y hay un caso que lo obliga: un
+ * cachorro sin ninguna vacuna —Rocco, en el seed— puede pedir un certificado,
+ * y no es paciente de nadie.
+ *
+ * Las más viejas primero porque es una cola: quien pidió antes espera más.
+ */
+export async function listarSolicitudesPendientes(
+  limite: number = LIMITE_POR_DEFECTO,
+) {
+  return prisma.certificado.findMany({
+    where: { estado: "SOLICITADO" },
+    take: limite,
+    orderBy: { solicitadoEn: "asc" },
+    select: CAMPOS_CERTIFICADO,
+  });
+}
+
 export async function obtenerCertificado(id: string) {
   return prisma.certificado.findUnique({
     where: { id },

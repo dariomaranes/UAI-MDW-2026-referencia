@@ -36,7 +36,9 @@
  * Que la decisión viva en la consulta y no en la vista es lo que hace que
  * siga valiendo cuando aparezca la segunda pantalla que verifica.
  */
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { obtenerUsuario } from "@/lib/auth";
 import {
   calcularVigencia,
   codigoVerificacionSchema,
@@ -126,56 +128,77 @@ export default async function Verificacion({ params }: Props) {
   const vigencia = calcularVigencia(certificado);
   const { etiqueta, variante, explicacion } = PRESENTACION[vigencia];
 
+  // La versión que NO lanza: esta página funciona sin sesión, y la sesión
+  // solo agrega una cosa — el camino de vuelta para quien sí tiene cuenta y
+  // llegó acá, por ejemplo escaneando el código con su teléfono.
+  //
+  // Lo que ve un tercero no cambia en nada: el link no muestra datos, y los
+  // datos del certificado siguen saliendo del `select` público.
+  const usuario = await obtenerUsuario();
+
   return (
-    <Card>
-      <CardHeader>
-        <CardDescription>Verificación de certificado</CardDescription>
-        <CardTitle className="flex flex-wrap items-center gap-3">
-          {certificado.mascota.nombre}
-          {/*
+    <div className="space-y-4">
+      {usuario ? (
+        <Link
+          href="/"
+          className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          ← Volver a la libreta
+        </Link>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardDescription>Verificación de certificado</CardDescription>
+          <CardTitle className="flex flex-wrap items-center gap-3">
+            {certificado.mascota.nombre}
+            {/*
             El estado en texto Y en color, nunca solo en color: es el requisito
             de accesibilidad de la clase 2. Y esta pantalla es la que más lo
             necesita, porque es la única que lee alguien de afuera, en un
             mostrador, apurado y desde un teléfono.
           */}
-          <Badge variant={variante}>{etiqueta}</Badge>
-        </CardTitle>
-      </CardHeader>
+            <Badge variant={variante}>{etiqueta}</Badge>
+          </CardTitle>
+        </CardHeader>
 
-      <CardContent className="space-y-4">
-        <p className="text-sm">{explicacion}</p>
+        <CardContent className="space-y-4">
+          <p className="text-sm">{explicacion}</p>
 
-        <dl className="grid gap-3 text-sm sm:grid-cols-[10rem_1fr]">
-          <dt className="text-muted-foreground">Mascota</dt>
-          <dd>
-            {certificado.mascota.nombre} ·{" "}
-            {NOMBRE_ESPECIE[certificado.mascota.especie]}
-          </dd>
+          <dl className="grid gap-3 text-sm sm:grid-cols-[10rem_1fr]">
+            <dt className="text-muted-foreground">Mascota</dt>
+            <dd>
+              {certificado.mascota.nombre} ·{" "}
+              {NOMBRE_ESPECIE[certificado.mascota.especie]}
+            </dd>
 
-          <dt className="text-muted-foreground">Emitido el</dt>
-          <dd>
-            {certificado.emitidoEn ? (
-              formatoFecha.format(certificado.emitidoEn)
-            ) : (
-              <span className="text-muted-foreground">todavía sin emitir</span>
-            )}
-          </dd>
+            <dt className="text-muted-foreground">Emitido el</dt>
+            <dd>
+              {certificado.emitidoEn ? (
+                formatoFecha.format(certificado.emitidoEn)
+              ) : (
+                <span className="text-muted-foreground">
+                  todavía sin emitir
+                </span>
+              )}
+            </dd>
 
-          <dt className="text-muted-foreground">Vence el</dt>
-          <dd>
-            {certificado.vencimiento ? (
-              formatoFecha.format(certificado.vencimiento)
-            ) : (
-              <span className="text-muted-foreground">—</span>
-            )}
-          </dd>
-        </dl>
+            <dt className="text-muted-foreground">Vence el</dt>
+            <dd>
+              {certificado.vencimiento ? (
+                formatoFecha.format(certificado.vencimiento)
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </dd>
+          </dl>
 
-        <p className="text-xs text-muted-foreground">
-          Esta página no requiere cuenta y muestra únicamente los datos del
-          certificado. No publica información de la persona que lo solicitó.
-        </p>
-      </CardContent>
-    </Card>
+          <p className="text-xs text-muted-foreground">
+            Esta página no requiere cuenta y muestra únicamente los datos del
+            certificado. No publica información de la persona que lo solicitó.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

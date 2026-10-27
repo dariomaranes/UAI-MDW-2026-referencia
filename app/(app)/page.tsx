@@ -39,11 +39,12 @@ import {
   listarMascotasAtendidasPor,
   listarMascotasDeDueno,
 } from "@/lib/db/mascotas";
+import { listarSolicitudesPendientes } from "@/lib/db/certificados";
 import { BuscadorMascotas, type Fila } from "@/components/buscador-mascotas";
 import { SinDatos } from "@/components/sin-datos";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { NOMBRE_ESPECIE } from "@/lib/etiquetas";
+import { NOMBRE_ESPECIE, NOMBRE_MOTIVO } from "@/lib/etiquetas";
 
 // Esta página lee datos que cambian, así que se renderiza en cada request.
 // Sin esta línea, Next.js intentaría generarla una sola vez durante el build
@@ -87,6 +88,11 @@ export default async function Home() {
         dueno: null,
       }));
 
+  // La cola de pedidos, solo para el veterinario. Es su puerta al paso 5 del
+  // flujo: sin esta lista, un pedido existiría en la base y nadie se
+  // enteraría de que hay que emitirlo.
+  const pendientes = esVeterinario ? await listarSolicitudesPendientes(20) : [];
+
   return (
     <div className="space-y-6">
       {/*
@@ -117,6 +123,39 @@ export default async function Home() {
           </Button>
         )}
       </div>
+
+      {esVeterinario ? (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight">
+            Certificados para emitir
+          </h2>
+          {pendientes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay pedidos esperando. Cuando un dueño pida un certificado,
+              aparece acá.
+            </p>
+          ) : (
+            <ul className="divide-y rounded-xl border">
+              {pendientes.map((certificado) => (
+                <li key={certificado.id}>
+                  <Link
+                    href={`/certificados/${certificado.id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-muted/50"
+                  >
+                    <span className="text-sm font-medium">
+                      {certificado.mascota.nombre} ·{" "}
+                      {NOMBRE_MOTIVO[certificado.motivo]}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      pedido el {formatoFecha.format(certificado.solicitadoEn)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       {/*
         LOS DOS VACÍOS NO SON EL MISMO VACÍO, y esta es la distinción que la

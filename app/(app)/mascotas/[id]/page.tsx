@@ -40,12 +40,19 @@ import { notFound } from "next/navigation";
 import { requerirUsuario } from "@/lib/auth";
 import { obtenerMascotaVisiblePara } from "@/lib/db/mascotas";
 import { listarAplicacionesDeMascota } from "@/lib/db/aplicaciones";
+import { listarCertificadosDeMascota } from "@/lib/db/certificados";
 import { datosDelEstadoSanitario } from "@/lib/db/vacunas";
 import { estadoSanitario } from "@/lib/estado-sanitario";
-import { NOMBRE_ESPECIE } from "@/lib/etiquetas";
+import {
+  NOMBRE_ESPECIE,
+  NOMBRE_ESTADO_CERTIFICADO,
+  NOMBRE_MOTIVO,
+} from "@/lib/etiquetas";
 import { EstadoSanitario } from "@/components/estado-sanitario";
 import { Button } from "@/components/ui/button";
 import { SinDatos } from "@/components/sin-datos";
+import { Badge } from "@/components/ui/badge";
+import { PedirCertificado } from "./pedir-certificado";
 import {
   Card,
   CardContent,
@@ -90,9 +97,13 @@ export default async function DetalleMascota({ params }: Props) {
   // la existencia del recurso no era del endpoint, era del sistema.
   if (!mascota) notFound();
 
-  const [{ plan, aplicaciones }, historial] = await Promise.all([
+  // Tres consultas que no dependen una de la otra: en paralelo. Desde la
+  // clase 12 se suma la de los certificados, y entra al mismo `Promise.all`
+  // en vez de esperarse después de las otras dos.
+  const [{ plan, aplicaciones }, historial, certificados] = await Promise.all([
     datosDelEstadoSanitario(mascota.especie, mascota.id),
     listarAplicacionesDeMascota(mascota.id),
+    listarCertificadosDeMascota(mascota.id),
   ]);
 
   // El `hoy` lo pone la pantalla, igual que lo pone el handler: la función de
@@ -239,15 +250,69 @@ export default async function DetalleMascota({ params }: Props) {
       </section>
 
       {/*
-        En la clase 12 esta pantalla dejó de ser solo de lectura: el
-        veterinario ya puede registrar una aplicación desde acá.
+        LOS CERTIFICADOS, Y EL PEDIDO. Es el paso 3 del mapa de pantallas, y
+        está acá y no en una pantalla aparte: el dueño decide pedirlo mirando
+        el estado sanitario de arriba.
 
-        Lo que todavía NO está, y sigue siendo a propósito: el botón de "pedir
-        certificado" del dueño. Dejarlo puesto y que no haga nada sería peor
-        que no tenerlo —una interfaz que promete una acción que no existe
-        enseña a desconfiar del resto de la pantalla—, así que aparece el día
-        que exista la pantalla detrás.
+        Hasta la clase 12 esta sección no existía, a propósito: un botón de
+        "pedir" que no hiciera nada habría sido peor que no tenerlo. Apareció
+        el día que existió la pantalla detrás.
       */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Certificados</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {usuario.rol === "DUENO"
+              ? "Lo pedís acá, y lo emite un veterinario. El sistema revisa antes que las obligatorias estén al día."
+              : "Los que pidió el dueño. Los pendientes se emiten desde el certificado."}
+          </p>
+        </div>
+
+        {certificados.length === 0 ? (
+          <SinDatos
+            titulo="Todavía no hay certificados"
+            detalle={
+              usuario.rol === "DUENO"
+                ? "Cuando pidas uno va a aparecer acá, con su estado."
+                : "Cuando el dueño pida uno va a aparecer acá, y también en tu inicio."
+            }
+          />
+        ) : (
+          <ul className="divide-y rounded-xl border">
+            {certificados.map((certificado) => (
+              <li key={certificado.id}>
+                <Link
+                  href={`/certificados/${certificado.id}`}
+                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-muted/50"
+                >
+                  <span>
+                    <span className="block text-sm font-medium">
+                      {NOMBRE_MOTIVO[certificado.motivo]}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Pedido el {formatoCorto.format(certificado.solicitadoEn)}
+                    </span>
+                  </span>
+                  <Badge
+                    variant={
+                      certificado.estado === "SOLICITADO" ? "secondary" : "outline"
+                    }
+                  >
+                    {NOMBRE_ESTADO_CERTIFICADO[certificado.estado]}
+                  </Badge>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {usuario.rol === "DUENO" ? (
+          <div className="rounded-xl border p-4">
+            <h3 className="mb-4 text-sm font-semibold">Pedir un certificado</h3>
+            <PedirCertificado mascotaId={mascota.id} />
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }
