@@ -1,5 +1,11 @@
 node_modules/
 .next/
+.next-e2e/
+
+# pruebas e2e: las sesiones fabricadas y los reportes de cada corrida
+e2e/.sesiones/
+playwright-report/
+test-results/
 out/
 build/
 .DS_Store

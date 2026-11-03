@@ -73,10 +73,39 @@ npx auth secret
 | `npm run build` | Build de producción (lo mismo que corre Vercel) |
 | `npm run lint` | Lint |
 | `npm run typecheck` | Chequeo de tipos sin emitir |
-| `npm test` | Tests |
+| `npm test` | Pruebas de dominio (vitest), en menos de un segundo |
+| `npm run test:e2e` | Pruebas de punta a punta y de permisos (Playwright), contra una base local |
 | `npx prisma migrate dev` | Crear y aplicar una migración |
 | `npx prisma studio` | Ver y editar los datos a mano |
 | `npm run db:seed` | Cargar datos de ejemplo |
+
+## Pruebas
+
+Dos capas, con dos comandos:
+
+- `npm test`: las reglas de dominio, con vitest. Sin base ni red.
+- `npm run test:e2e`: el flujo principal de la spec y los permisos de `docs/api.md`, con
+  Playwright. Migra y carga el seed en la base de `.env.e2e`, compila la app y la levanta en el
+  puerto 3100, así que no choca con `npm run dev`.
+
+Las e2e **nunca corren contra la base de producción**: `playwright.config.ts` se niega a arrancar
+si `DATABASE_URL` no es local. La primera vez:
+
+```bash
+docker run -d --name libreta-e2e -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=libreta -p 54329:5432 postgres:16-alpine
+npx playwright install chromium
+```
+
+Después, cada vez:
+
+```bash
+docker start libreta-e2e          # si la base no está corriendo
+npm run test:e2e                  # las corre todas en la terminal
+npm run test:e2e -- --ui          # interfaz visual: paso a paso, con la pantalla de cada uno
+npm run test:e2e -- --headed      # muestra el navegador mientras corre
+npx playwright show-trace test-results/<prueba>/trace.zip   # el recorrido de una que falló
+```
 
 ## Estructura
 
