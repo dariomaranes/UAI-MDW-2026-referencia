@@ -13,10 +13,9 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { requerirUsuario } from "@/lib/auth";
 import { emitirCertificadoSolicitado } from "@/lib/casos/emitir-certificado";
-import type { EstadoDelFormulario } from "@/lib/formularios";
+import { SIN_ENVIAR, type EstadoDelFormulario } from "@/lib/formularios";
 
 /**
  * La URL de verificación que va impresa en el PDF.
@@ -71,7 +70,10 @@ export async function emitirCertificadoAction(
   revalidatePath(`/mascotas/${emision.certificado.mascota.id}`);
   revalidatePath("/");
 
-  // A la misma pantalla, que ahora muestra el código y el PDF. El redirect
-  // fuerza a leerla de nuevo desde el servidor.
-  redirect(`/certificados/${certificadoId}`);
+  // Sin redirect: la persona ya está en esta pantalla, y el revalidatePath
+  // de arriba hace que vuelva del servidor con el código y el PDF. Un
+  // redirect a la MISMA URL dejaba a veces el botón en "Emitiendo…" para
+  // siempre —la transición de useActionState no terminaba—. En local casi
+  // nunca pasaba; en la máquina del CI, sí: lo encontró la prueba del flujo.
+  return SIN_ENVIAR;
 }
