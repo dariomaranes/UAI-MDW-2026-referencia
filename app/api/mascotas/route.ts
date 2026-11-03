@@ -72,7 +72,13 @@ export async function POST(request: Request) {
     // 2. Autorizar. El dueño sale de la sesión del servidor, NUNCA del body.
     //    Es la misma línea que en la clase 4 evitaba el `data: body`, ahora
     //    con un usuario de verdad.
-    const usuario = await requerirUsuario();
+    //
+    //    Y con el rol, que faltó hasta la clase 13: sin él, un veterinario
+    //    podía registrar mascotas por la API —a su nombre— aunque la pantalla
+    //    no le mostrara el botón. El contrato decía "Dueño" desde el
+    //    principio; lo encontró la prueba de permisos, que se escribió mirando
+    //    el contrato y no el código (`e2e/permisos.spec.ts`).
+    const usuario = await requerirUsuario("DUENO");
 
     // 3. Delegar el acceso a datos.
     const mascota = await crearMascota(resultado.data, usuario.id);
