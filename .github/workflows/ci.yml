@@ -30,3 +30,63 @@ jobs:
 
       - name: Tests
         run: npm test
+
+  # El sistema entero, en cada Pull Request: la app compilada, una base de
+  # verdad y un navegador. Es el "PR job" de la lectura de la clase 12, con una
+  # diferencia que nos favorece: en la web, el navegador de CI ES el
+  # dispositivo, no un emulador de otro.
+  #
+  # Corre aparte de `verificar` y en paralelo con él: si los tipos fallan, se
+  # sabe en un minuto, sin esperar a que compile y levante todo.
+  e2e:
+    runs-on: ubuntu-latest
+
+    # Una base Postgres que nace con el job y muere con él. Nunca la de
+    # producción: las pruebas registran mascotas y emiten certificados.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: libreta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Pisan a las de `.env.e2e`, que apuntan al puerto del Docker local.
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/libreta
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/libreta
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22, la versión con la que corre Vercel: lo que se prueba acá es la
+      # app compilada, y conviene compilarla igual que en producción.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar el navegador
+        run: npx playwright install --with-deps chromium
+
+      # Migraciones, seed, build y servidor: lo hace todo `npm run test:e2e`.
+      - name: Pruebas de punta a punta
+        run: npm run test:e2e
+
+      # Si algo falla, el recorrido grabado queda para descargar desde la
+      # pestaña del job: pantallas, red y consola, paso a paso.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: recorrido-de-la-falla
+          path: test-results/
+          retention-days: 7
