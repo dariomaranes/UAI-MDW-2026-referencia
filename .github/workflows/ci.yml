@@ -83,10 +83,13 @@ jobs:
         run: npm run test:e2e
 
       # Si algo falla, el recorrido grabado queda para descargar desde la
-      # pestaña del job: pantallas, red y consola, paso a paso.
+      # pestaña del job: pantallas, red y consola, paso a paso. También cuando
+      # el job termina en verde: una prueba que falló y pasó al reintentar
+      # ("flaky") deja su recorrido, y es justo la que hay que mirar.
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: recorrido-de-la-falla
           path: test-results/
+          if-no-files-found: ignore
           retention-days: 7
