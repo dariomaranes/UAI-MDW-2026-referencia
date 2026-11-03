@@ -26,7 +26,7 @@ La entidad principal del dominio, y la única con CRUD completo.
 | Método y ruta | Qué hace | Rol | Errores |
 |---|---|---|---|
 | `GET /api/mascotas` | Las mascotas propias. Para el dueño, las suyas; para el veterinario, sus **pacientes** —las que atendió— | Dueño · Veterinario | 401 |
-| `POST /api/mascotas` | Registra una mascota | Dueño | 400, 401 |
+| `POST /api/mascotas` | Registra una mascota | Dueño | 400, 401, 403 |
 | `GET /api/mascotas/:id` | La ficha de una mascota | Dueño (la suya) | 401, 404 |
 | `PATCH /api/mascotas/:id` | Corrige datos de la mascota | Dueño (la suya) | 400, 401, 404 |
 | `DELETE /api/mascotas/:id` | Borra una mascota | Dueño (la suya) | 401, 404, 409 |
