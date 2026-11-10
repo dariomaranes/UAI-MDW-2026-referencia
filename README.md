@@ -78,6 +78,9 @@ npx auth secret
 | `npx prisma migrate dev` | Crear y aplicar una migración |
 | `npx prisma studio` | Ver y editar los datos a mano |
 | `npm run db:seed` | Cargar datos de ejemplo |
+| `npm run db:carga` | 50.000 mascotas, para medir. Solo en una base local aparte (ver abajo) |
+| `npm run demo:indices` | La misma búsqueda sin índice y con índice, sobre la base de carga |
+| `npm run demo:carrera` | Diez pedidos iguales al mismo tiempo: la carrera de la clase 14 |
 
 ## Pruebas
 
@@ -106,6 +109,44 @@ npm run test:e2e -- --ui          # interfaz visual: paso a paso, con la pantall
 npm run test:e2e -- --headed      # muestra el navegador mientras corre
 npx playwright show-trace test-results/<prueba>/trace.zip   # el recorrido de una que falló
 ```
+
+## Medir con muchos datos
+
+Con las tres mascotas del seed todo es instantáneo, hasta lo que está mal. Para saber cómo se
+comporta el sistema después de un par de años de uso:
+
+```bash
+npm run db:carga       # 5.000 dueños, 50.000 mascotas, 150.000 aplicaciones, 50.000 certificados
+npm run demo:indices   # tres búsquedas de la app, sin índice y con índice
+```
+
+`db:carga` arma una base **aparte**, `libreta_carga`, en el mismo contenedor de Docker de las
+pruebas: con tantos datos, las pruebas e2e fallarían por los datos y no por el código. Se puede
+correr las veces que haga falta, tarda unos 8 segundos y se niega a correr si la base no es local.
+
+Para medir una consulta propia, a mano:
+
+```bash
+docker exec -it libreta-e2e psql -U postgres -d libreta_carga
+```
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM "Mascota" WHERE "duenoId" = 'carga-dueno-17';
+```
+
+`Seq Scan` es que recorrió la tabla entera; `Index Scan`, que fue directo. El `rows=` dice
+cuántas filas tocó, y `Execution Time`, cuánto tardó. Medí dos o tres veces: la primera paga el
+disco y miente.
+
+## La carrera de la clase 14, en vivo
+
+```bash
+npm run demo:carrera
+```
+
+Ana pide el mismo certificado diez veces al mismo tiempo, primero con la regla "una sola
+pendiente" solo en el código y después también en la base, y muestra cuántas quedaron guardadas.
+Usa la base de las pruebas y la deja como estaba.
 
 ## Estructura
 
