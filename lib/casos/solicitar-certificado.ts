@@ -23,6 +23,7 @@
  * sin haber preguntado antes si el motivo era `VACUNAS_FALTANTES`.
  */
 import {
+  esSolicitudDuplicada,
   solicitarCertificado,
   solicitudPendiente,
 } from "@/lib/db/certificados";
@@ -80,16 +81,7 @@ export async function solicitarCertificadoDeMascota(
   // eso primero se escribió en la spec.
   const pendiente = await solicitudPendiente(mascota.id, datos.motivo);
 
-  if (pendiente) {
-    return {
-      ok: false,
-      motivo: "SOLICITUD_PENDIENTE",
-      mensaje: `Ya hay una solicitud pendiente de emisión para ${mascota.nombre} con ese motivo`,
-      // El id, para que la pantalla pueda llevar al dueño hasta ella en vez
-      // de dejarlo adivinando cuál de todas era.
-      solicitudPendienteId: pendiente.id,
-    };
-  }
+  if (pendiente) return yaHayUnaPendiente(mascota.nombre, pendiente.id);
 
   // La segunda es la de la clase 5. Tres líneas y ningún `if` con fechas
   // adentro: leer, preguntar, traducir. Todo el razonamiento —qué vacuna
@@ -120,7 +112,29 @@ export async function solicitarCertificadoDeMascota(
     };
   }
 
-  const certificado = await solicitarCertificado(datos, duenoId);
+  // ---------------------------------------------------------------------
+  // EL HUECO ENTRE LEER Y ESCRIBIR (clase 14).
+  //
+  // Entre la consulta de arriba y esta línea pasan varias consultas más. Si
+  // en ese rato llegó otro pedido igual —un doble clic, dos pestañas—, los
+  // dos vieron "no hay pendiente" y los dos llegan hasta acá. El chequeo de
+  // arriba sigue sirviendo —es el camino normal, y el más barato—, pero quien
+  // decide en el empate es la base: el segundo `create` choca contra el
+  // índice único y cae en el `catch`.
+  // ---------------------------------------------------------------------
+  let certificado: Awaited<ReturnType<typeof solicitarCertificado>>;
+
+  try {
+    certificado = await solicitarCertificado(datos, duenoId);
+  } catch (error) {
+    if (!esSolicitudDuplicada(error)) throw error;
+
+    // Perdió la carrera. La que ganó ya está en la base, así que ahora sí la
+    // encuentra, y el dueño recibe lo mismo que si hubiera llegado segundo.
+    const ganadora = await solicitudPendiente(mascota.id, datos.motivo);
+    if (!ganadora) throw error;
+    return yaHayUnaPendiente(mascota.nombre, ganadora.id);
+  }
 
   // Ya se verificó la pertenencia arriba; esto solo puede pasar si la mascota
   // se borró en el medio. Se responde lo mismo que si no existiera.
@@ -133,4 +147,19 @@ export async function solicitarCertificadoDeMascota(
   }
 
   return { ok: true, certificado };
+}
+
+/** El rechazo del ADR 0002, igual llegue por el chequeo o por la base. */
+function yaHayUnaPendiente(
+  nombreDeLaMascota: string,
+  solicitudPendienteId: string,
+): ResultadoSolicitud {
+  return {
+    ok: false,
+    motivo: "SOLICITUD_PENDIENTE",
+    mensaje: `Ya hay una solicitud pendiente de emisión para ${nombreDeLaMascota} con ese motivo`,
+    // El id, para que la pantalla pueda llevar al dueño hasta ella en vez de
+    // dejarlo adivinando cuál de todas era.
+    solicitudPendienteId,
+  };
 }

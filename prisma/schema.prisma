@@ -244,6 +244,11 @@ model Certificado {
 
   @@index([mascotaId])
   @@index([emisorId])
+
+  // Hay un índice más que no está acá: "una sola solicitud pendiente por
+  // mascota y motivo" (ADR 0002) es un índice único PARCIAL —solo entre las
+  // filas en SOLICITADO— y Prisma 6 no sabe escribirlos en este archivo. Está
+  // en SQL, en la migración `*_una_solicitud_pendiente` (clase 14).
 }
 
 model Veterinaria {

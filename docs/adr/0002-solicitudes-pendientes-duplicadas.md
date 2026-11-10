@@ -52,3 +52,26 @@ Un certificado ya emitido **no** bloquea: pedir uno nuevo antes de que venza es 
   anotado a propósito.
 - Si más adelante aparece la necesidad de renovar automáticamente, o de que un certificado emitido
   bloquee, hay que volver a esta decisión: es la opción **D** que descartamos hoy.
+
+---
+
+## Actualización — 2026-11-10 (clase 14): la base también la hace cumplir
+
+Lo que quedó "anotado a propósito" en la tercera consecuencia pasó, y no por un segundo camino que
+se olvidara el chequeo: pasó con el **único** camino, el que sí lo tenía.
+
+`e2e/concurrencia.spec.ts` manda diez pedidos iguales al mismo tiempo. Con la regla solo en el
+código, **nueve devolvieron 201** y quedaron nueve solicitudes pendientes iguales. El chequeo es
+"consultar y después crear", y los diez consultaron antes de que ninguno creara. Ninguno se
+equivocó: cada uno leyó la verdad de ese instante.
+
+Se agregó el índice único parcial que la consecuencia mencionaba, escrito a mano en SQL
+(`prisma/migrations/*_una_solicitud_pendiente/`) porque Prisma 6 no lo sabe declarar. La
+migración primero borra los duplicados que ya existían —se queda con la solicitud más vieja de
+cada grupo—, porque si no la base se niega a crear el índice.
+
+El chequeo en el código se queda: es el camino normal, y es el que arma el mensaje con el id de la
+que espera. El índice decide el empate, y el P2002 se traduce al mismo `409`
+(`esSolicitudDuplicada`, en `lib/db/certificados.ts`). Ahora, de los diez pedidos, uno da 201 y
+nueve dan 409.
+
