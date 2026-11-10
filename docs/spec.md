@@ -227,6 +227,49 @@ implementado y no hace falta: nada del flujo principal necesita borrar.
 
 ## 7. Requisitos no funcionales
 
+### Rendimiento
+
+Un requisito de rendimiento sin un número y sin un volumen no se puede incumplir, y por eso no
+sirve. El **volumen de referencia** de este sistema sale del dominio de la sección 1 —varias
+clínicas de barrio, un par de años de uso— y se expresa en órdenes de magnitud, no en una cifra
+exacta:
+
+| Entidad | Orden de magnitud | De dónde sale |
+|---|---|---|
+| Mascotas | decenas de miles | la cartera de pacientes de varias clínicas chicas |
+| Aplicaciones | **~3 por mascota** | el plan obligatorio de los primeros años de vida |
+| Certificados | **~1 cada 2 mascotas** | no todas viajan ni van a guardería |
+| Solicitudes en espera | miles, en el peor momento | la cola es compartida por todos los veterinarios |
+
+Lo que importa de la tabla no son los números sino las **proporciones**: el día que el sistema
+crezca un orden de magnitud, los tiempos de abajo tienen que seguir valiendo. Con los datos de
+ejemplo del desarrollo no se mide nada, porque con tres mascotas todo es instantáneo, hasta lo
+que está mal.
+
+- **Ver el estado sanitario** de una mascota responde en **menos de 300 ms**. Es la pantalla que el
+  veterinario mira con el animal en la camilla: si tarda, suelta al animal y se pierde el lugar.
+  Es además la consulta más cara del sistema, porque el estado **se calcula y no se guarda**.
+- **La cola de solicitudes pendientes** —la que ve el veterinario al entrar— responde en **menos
+  de 500 ms**, y su costo **no crece con la cantidad de pedidos en espera**: se muestran de a 20 y
+  la base tiene que poder leer esas 20 y parar, en lugar de leerlas todas y ordenarlas para
+  quedarse con las primeras.
+- **Ninguna consulta del flujo principal recorre una tabla entera.** Sobre `Mascota`, `Aplicacion`
+  y `Certificado`, `EXPLAIN ANALYZE` tiene que decir `Index Scan` y no `Seq Scan`. Se mide dos o
+  tres veces: la primera paga el disco y miente.
+- **Una pantalla no hace una consulta atrás de la otra** cuando puede hacerlas juntas. Si el
+  segundo pedido no necesita la respuesta del primero, los dos salen al mismo tiempo.
+- **Las reglas que protegen un invariante se cumplen en la base, no solo en el código.** Un `if`
+  solo ve su propio pedido; la base los ve todos. Dos o más pedidos simultáneos del mismo
+  certificado tienen que dejar **una sola** solicitud pendiente, y los que pierdan la carrera
+  reciben la misma respuesta que si hubieran llegado segundos.
+- **El servicio externo no está en el camino crítico.** Emitir un certificado responde sin esperar
+  a que el PDF esté guardado: lo que vale es el registro, no el archivo (ver la sección 8).
+
+Los milisegundos son un **presupuesto**: se escriben antes de medir, y después se verifica si se
+cumplen. Cómo generar ese volumen en una base local para medirlo es una cuestión de herramientas
+y está en el README, no acá: este documento dice **qué tiene que cumplir el sistema**, no con qué
+script se comprueba.
+
 ### Usabilidad
 
 - **Eficiencia:** registrar una aplicación se hace en **4 interacciones o menos**, porque el
