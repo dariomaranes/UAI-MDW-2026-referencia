@@ -38,6 +38,7 @@ npm run build        # build de producción
 npm run typecheck    # chequeo de tipos
 npm test             # pruebas de las funciones de dominio (vitest, sin levantar nada)
 npm run test:e2e     # el sistema entero: base local, app compilada y navegador (Playwright)
+npm run db:carga     # 50.000 mascotas en una base local aparte, para medir (ver README)
 npx prisma migrate dev --name <nombre>
 ```
 
@@ -62,6 +63,16 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 - **Todo acceso a la base pasa por `lib/db/`.** Está prohibido importar el cliente de Prisma en componentes o en `app/`.
 - El cliente de Prisma se importa solo desde `lib/db/client.ts`.
 - Toda consulta que devuelva listas tiene paginación o límite explícito.
+- **Una regla de unicidad se cumple en la base, no solo en el código.** "Consultar si existe y
+  después crear" deja un hueco: dos pedidos a la vez consultan los dos antes de que ninguno cree.
+  El chequeo en el código puede quedar —da el mensaje lindo—, pero quien decide el empate es un
+  índice único (`@unique`, `@@unique`, o un índice parcial en SQL si Prisma no lo sabe escribir).
+  El P2002 que tira la base se traduce al mismo 409 que el chequeo; nunca llega como 500.
+- **Una transición de estado va en el WHERE**: `updateMany({ where: { id, estado: "SOLICITADO" } })`
+  y mirar `count`. Nunca leer el estado, comparar en un `if` y después escribir.
+- Las consultas que no dependen una de otra van en `Promise.all`, no en dos `await` seguidos.
+- Un índice nuevo se justifica con una medición (`EXPLAIN ANALYZE` sobre la base de
+  `npm run db:carga`), no con una intuición. El índice sigue el WHERE y después el ORDER BY.
 
 ### Validación
 - **Toda entrada externa se valida con un schema de Zod** definido en `lib/schemas/`. Entrada externa = body de un request, params, query string, formulario, respuesta de una API de terceros.
@@ -119,6 +130,8 @@ Después de tocar `prisma/schema.prisma`, siempre generar una migración. Nunca 
 - **El flujo principal de la spec tiene su prueba de punta a punta** en
   `e2e/flujo-principal.spec.ts`, un `test.step` por paso. Si el flujo cambia en la spec, cambia la
   prueba en el mismo PR.
+- **Una regla que dice "uno solo" o "una sola vez" tiene su prueba de pedidos simultáneos** en
+  `e2e/concurrencia.spec.ts`: N pedidos con `Promise.all`, y se cuenta lo que quedó en la base.
 - **Cada fila de la columna "Rol" de `docs/api.md` tiene su caso en `e2e/permisos.spec.ts`.** Un
   endpoint nuevo entra con su fila. Las pruebas de permisos se escriben mirando el contrato, no el
   código: el código dice lo que hace, no lo que debería hacer.
