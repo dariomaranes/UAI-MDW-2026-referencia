@@ -5,7 +5,7 @@
  * son actos que alguien realiza, con reglas y permisos propios. Por eso cada
  * uno tiene su función y no son un `update` genérico del campo `estado`.
  */
-import type { Rol } from "@prisma/client";
+import { Prisma, type Rol } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import type {
   MotivoCertificado,
@@ -176,6 +176,32 @@ export async function solicitarCertificado(
     },
     select: CAMPOS_CERTIFICADO,
   });
+}
+
+/**
+ * Si el error es el de la regla "una sola solicitud pendiente por mascota y
+ * motivo" (ADR 0002), cumplida por la base.
+ *
+ * `solicitudPendiente` ya la chequea antes de crear, y con un pedido por vez
+ * alcanza. Con dos a la vez no: los dos consultan, los dos ven "no hay", y los
+ * dos crean (`e2e/concurrencia.spec.ts`). Por eso la regla también es un
+ * índice único parcial en la base —ver la migración
+ * `*_una_solicitud_pendiente`—, y el segundo `create` falla con P2002.
+ *
+ * Que falle es lo correcto. Lo que no puede pasar es que ese error llegue al
+ * usuario como un 500: para él es el mismo caso que si hubiera llegado
+ * segundo de a uno, y recibe el mismo 409.
+ */
+export function esSolicitudDuplicada(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code !== "P2002") return false;
+
+  // P2002 es "violó ALGÚN índice único". Certificado tiene otro —el código de
+  // verificación—, así que se mira cuál.
+  const campos = error.meta?.target;
+  return (
+    Array.isArray(campos) && campos.includes("mascotaId") && campos.includes("motivo")
+  );
 }
 
 /**
