@@ -72,26 +72,44 @@ export default async function Home() {
    * pantalla es trabajo del servidor: acá se hace una vez, en el cliente se
    * haría en cada render y con la configuración regional de quien mira.
    */
-  const mascotas: Fila[] = esVeterinario
-    ? (await listarMascotasAtendidasPor(usuario.id)).map((m) => ({
-        id: m.id,
-        nombre: m.nombre,
-        especie: NOMBRE_ESPECIE[m.especie],
-        nacimiento: formatoFecha.format(m.fechaNacimiento),
-        dueno: m.dueno.nombre,
-      }))
-    : (await listarMascotasDeDueno(usuario.id)).map((m) => ({
-        id: m.id,
-        nombre: m.nombre,
-        especie: NOMBRE_ESPECIE[m.especie],
-        nacimiento: formatoFecha.format(m.fechaNacimiento),
-        dueno: null,
-      }));
+  const mascotasDeLaBase = esVeterinario
+    ? listarMascotasAtendidasPor(usuario.id).then((lista) =>
+        lista.map(
+          (m): Fila => ({
+            id: m.id,
+            nombre: m.nombre,
+            especie: NOMBRE_ESPECIE[m.especie],
+            nacimiento: formatoFecha.format(m.fechaNacimiento),
+            dueno: m.dueno.nombre,
+          }),
+        ),
+      )
+    : listarMascotasDeDueno(usuario.id).then((lista) =>
+        lista.map(
+          (m): Fila => ({
+            id: m.id,
+            nombre: m.nombre,
+            especie: NOMBRE_ESPECIE[m.especie],
+            nacimiento: formatoFecha.format(m.fechaNacimiento),
+            dueno: null,
+          }),
+        ),
+      );
 
   // La cola de pedidos, solo para el veterinario. Es su puerta al paso 5 del
   // flujo: sin esta lista, un pedido existiría en la base y nadie se
   // enteraría de que hay que emitirlo.
-  const pendientes = esVeterinario ? await listarSolicitudesPendientes(20) : [];
+  //
+  // Hasta la clase 13 esto era un segundo `await`, debajo del primero: la
+  // cola recién se pedía cuando las mascotas ya habían llegado, aunque no
+  // depende de ellas. Es un WATERFALL —dos viajes a la base en fila—, y no se
+  // nota con la base al lado; se nota con la base en otro datacenter, donde
+  // cada viaje es lo que tarda la red (clase 14). Con `Promise.all` salen
+  // juntas, y la página tarda lo que la más lenta, no la suma.
+  const [mascotas, pendientes] = await Promise.all([
+    mascotasDeLaBase,
+    esVeterinario ? listarSolicitudesPendientes(20) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-6">

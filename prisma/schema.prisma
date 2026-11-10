@@ -245,6 +245,12 @@ model Certificado {
   @@index([mascotaId])
   @@index([emisorId])
 
+  // La cola del veterinario: "las SOLICITADO, las más viejas primero, de a
+  // 20". El índice sigue el WHERE y después el ORDER BY, en ese orden, así que
+  // Postgres lee las primeras 20 y para. Sin él, con 5.000 esperando, las lee
+  // todas y las ordena para quedarse con 20 (clase 14, `npm run db:carga`).
+  @@index([estado, solicitadoEn])
+
   // Hay un índice más que no está acá: "una sola solicitud pendiente por
   // mascota y motivo" (ADR 0002) es un índice único PARCIAL —solo entre las
   // filas en SOLICITADO— y Prisma 6 no sabe escribirlos en este archivo. Está
